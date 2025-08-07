@@ -7,7 +7,7 @@ interface CreateNoteSettings {
 }
 
 const DEFAULT_SETTINGS: CreateNoteSettings = {
-	inputFolderPath: '/_input',
+	inputFolderPath: '_input',
 	noteFolderPath: '_unsortiert',
 	attachementFolderPath: '_unsortiert/_files'
 }
@@ -19,8 +19,8 @@ export default class createNotePlugin extends Plugin {
 		await this.loadSettings();
 
 		// This creates an icon in the left ribbon.
-		const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
+		const ribbonIconEl = this.addRibbonIcon('dice', 'Import Files', (evt: MouseEvent) => {
+			this.processFiles();
 			new Notice('This is a notice!');
 		});
 		// Perform additional things with the ribbon
@@ -30,6 +30,7 @@ export default class createNotePlugin extends Plugin {
 		const statusBarItemEl = this.addStatusBarItem();
 		statusBarItemEl.setText('Status Bar Text');
 
+		
 		// This adds a simple command that can be triggered anywhere
 		this.addCommand({
 			id: 'open-sample-modal-simple',
@@ -38,6 +39,9 @@ export default class createNotePlugin extends Plugin {
 				new SampleModal(this.app).open();
 			}
 		});
+		
+
+		
 		// This adds an editor command that can perform some operation on the current editor instance
 		this.addCommand({
 			id: 'sample-editor-command',
@@ -47,6 +51,7 @@ export default class createNotePlugin extends Plugin {
 				editor.replaceSelection('Sample Editor Command');
 			}
 		});
+		
 		// This adds a complex command that can check whether the current state of the app allows execution of the command
 		this.addCommand({
 			id: 'open-sample-modal-complex',
@@ -66,18 +71,22 @@ export default class createNotePlugin extends Plugin {
 				}
 			}
 		});
-
+	
+		
 		// This adds a settings tab so the user can configure various aspects of the plugin
 		this.addSettingTab(new CreateNoteSettingTab(this.app, this));
-
+		
+		
 		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
 		// Using this function will automatically remove the event listener when this plugin is disabled.
 		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
 			console.log('click', evt);
 		});
-
+		
+		
 		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
 		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
+		
 	}
 
 	onunload() {
@@ -91,7 +100,76 @@ export default class createNotePlugin extends Plugin {
 	async saveSettings() {
 		await this.saveData(this.settings);
 	}
+
+	async processFiles() {
+		try {
+			// Check if required folders exisit
+			if (!await this.ensureAllFoldersExist(this.settings)) {
+				new Notice('Import aborted');
+				return;
+			}
+
+			new Notice('Alles schick!');
+
+			/*
+			// Get allowed extensions
+			const allowedExtensions = this.settings.fileExtensions
+				.split(',')
+				.map(ext => ext.trim().toLowerCase())
+				.filter(ext => ext.length > 0);
+
+			// Read all files in the directory
+			const files = readdirSync(sourcePath);
+			let processedCount = 0;
+
+			for (const file of files) {
+				const filePath = join(sourcePath, file);
+
+				// Skip directories
+				if (statSync(filePath).isDirectory()) continue;
+
+				// Check if file extension is allowed
+				const fileExt = extname(file).toLowerCase().substring(1);
+				if (allowedExtensions.length > 0 && !allowedExtensions.includes(fileExt)) {
+					continue;
+				}
+
+				// Process the file
+				await this.processFile(filePath, file, targetFolderPath);
+				processedCount++;
+			}
+			
+			new Notice(`Processed ${processedCount} files`);
+			*/
+
+		} catch (error) {
+			console.error('Error processing files:', error);
+			new Notice(`Error: ${error.message}`);
+		}
+	}
+
+	async ensureAllFoldersExist(mySettings: CreateNoteSettings): Promise<boolean> {
+
+		if (!await this.app.vault.adapter.exists(mySettings.attachementFolderPath)) {
+			new Notice(`Folder ${mySettings.attachementFolderPath} does not exists`);
+			return false;
+		}
+
+		if (!await this.app.vault.adapter.exists(mySettings.inputFolderPath)) {
+			new Notice(`Folder ${mySettings.inputFolderPath} does not exists`);
+			return false;
+		}
+
+		if (!await this.app.vault.adapter.exists(mySettings.noteFolderPath)) {
+			new Notice(`Folder ${mySettings.noteFolderPath} does not exists`);
+			return false;
+		}
+
+		return true;
+	}
+
 }
+
 
 class SampleModal extends Modal {
 	constructor(app: App) {
@@ -108,6 +186,7 @@ class SampleModal extends Modal {
 		contentEl.empty();
 	}
 }
+	
 
 class FolderSuggest extends AbstractInputSuggest<TFolder> {
 	constructor(app: App, private inputEl: HTMLInputElement) {
@@ -144,7 +223,6 @@ function ObsidianVaultTraversal(folder: TFolder, result: TFolder[]) {
 	}
 }
 
-
 class CreateNoteSettingTab extends PluginSettingTab {
 	plugin: createNotePlugin;
 
@@ -172,7 +250,7 @@ class CreateNoteSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 				});
 			});
-			new Setting(containerEl)
+		new Setting(containerEl)
 			.setName("Note Folder")
 			.setDesc("Folder where new notes are placed")
 			.addText(text => {
@@ -186,7 +264,7 @@ class CreateNoteSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 				});
 			});
-			new Setting(containerEl)
+		new Setting(containerEl)
 			.setName("Attachement folder")
 			.setDesc("Folder where attachements are stored")
 			.addText(text => {
