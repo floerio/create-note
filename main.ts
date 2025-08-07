@@ -1,4 +1,7 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, AbstractInputSuggest, TFolder } from 'obsidian';
+import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, AbstractInputSuggest, TFolder, normalizePath } from 'obsidian';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, copyFile } from 'fs';
+import { join, basename, extname } from 'path';
+// import { copy } from 'fs-extra';
 
 interface CreateNoteSettings {
 	inputFolderPath: string;
@@ -21,7 +24,6 @@ export default class createNotePlugin extends Plugin {
 		// This creates an icon in the left ribbon.
 		const ribbonIconEl = this.addRibbonIcon('dice', 'Import Files', (evt: MouseEvent) => {
 			this.processFiles();
-			new Notice('This is a notice!');
 		});
 		// Perform additional things with the ribbon
 		ribbonIconEl.addClass('my-plugin-ribbon-class');
@@ -30,7 +32,7 @@ export default class createNotePlugin extends Plugin {
 		const statusBarItemEl = this.addStatusBarItem();
 		statusBarItemEl.setText('Status Bar Text');
 
-		
+		/*
 		// This adds a simple command that can be triggered anywhere
 		this.addCommand({
 			id: 'open-sample-modal-simple',
@@ -39,9 +41,9 @@ export default class createNotePlugin extends Plugin {
 				new SampleModal(this.app).open();
 			}
 		});
-		
+		*/
 
-		
+		/*
 		// This adds an editor command that can perform some operation on the current editor instance
 		this.addCommand({
 			id: 'sample-editor-command',
@@ -51,7 +53,9 @@ export default class createNotePlugin extends Plugin {
 				editor.replaceSelection('Sample Editor Command');
 			}
 		});
-		
+		*/
+
+		/*
 		// This adds a complex command that can check whether the current state of the app allows execution of the command
 		this.addCommand({
 			id: 'open-sample-modal-complex',
@@ -71,22 +75,24 @@ export default class createNotePlugin extends Plugin {
 				}
 			}
 		});
-	
+		*/
 		
 		// This adds a settings tab so the user can configure various aspects of the plugin
 		this.addSettingTab(new CreateNoteSettingTab(this.app, this));
 		
 		
+		/*
 		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
 		// Using this function will automatically remove the event listener when this plugin is disabled.
 		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
 			console.log('click', evt);
 		});
+		*/
 		
-		
+		/*
 		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
 		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
-		
+		*/
 	}
 
 	onunload() {
@@ -101,6 +107,9 @@ export default class createNotePlugin extends Plugin {
 		await this.saveData(this.settings);
 	}
 
+	//
+	// get all files and call the process function for each file
+	// 
 	async processFiles() {
 		try {
 			// Check if required folders exisit
@@ -109,44 +118,64 @@ export default class createNotePlugin extends Plugin {
 				return;
 			}
 
-			new Notice('Alles schick!');
-
-			/*
-			// Get allowed extensions
-			const allowedExtensions = this.settings.fileExtensions
-				.split(',')
-				.map(ext => ext.trim().toLowerCase())
-				.filter(ext => ext.length > 0);
-
-			// Read all files in the directory
-			const files = readdirSync(sourcePath);
+			// get base path for the vault
+			const basePath = normalizePath((this.app.vault.adapter as any).basePath);
+			
+			const inputFolderPath = basePath + normalizePath('/' + this.settings.inputFolderPath);
+			const files = readdirSync(inputFolderPath);
+			console.error('List of files:' + files)
 			let processedCount = 0;
 
+			// handle each file
 			for (const file of files) {
-				const filePath = join(sourcePath, file);
+				const filePath = join(inputFolderPath, file);
 
 				// Skip directories
 				if (statSync(filePath).isDirectory()) continue;
 
-				// Check if file extension is allowed
-				const fileExt = extname(file).toLowerCase().substring(1);
-				if (allowedExtensions.length > 0 && !allowedExtensions.includes(fileExt)) {
-					continue;
-				}
-
 				// Process the file
-				await this.processFile(filePath, file, targetFolderPath);
+				await this.processFile(filePath, file, basePath);
 				processedCount++;
 			}
 			
 			new Notice(`Processed ${processedCount} files`);
-			*/
 
 		} catch (error) {
 			console.error('Error processing files:', error);
 			new Notice(`Error: ${error.message}`);
 		}
 	}
+	 async processFile(filePath: string, fileName: string, basePath: string) {
+        // Generate a safe note title from filename (removing extension)
+
+       
+        try {
+            // first move the file to the attachments folder
+			const fileToRename = this.app.vault.getFileByPath(filePath);
+            const targetFilePath = `${basePath}/${this.settings.attachementFolderPath}/${fileName}`;
+			await this.app.vault.rename(fileToRename,targetFilePath)
+           
+
+			/*
+
+			// prepare names for note and its path
+			const noteTitle = basename(fileName, extname(fileName)).replace(/[^\w\s-]/g, '');
+        	const notePath = `${basePath}/${this.settings.noteFolderPath}/${noteTitle}.md`;
+
+			// Create note content with template and file link
+            const noteContent = this.createNoteContent(fileName, noteTitle);
+
+            // Create the note file in vault
+            await this.app.vault.create(notePath, noteContent);
+			*/
+
+            new Notice(`Created note for: ${fileName}`);
+        } catch (error) {
+            console.error(`Error processing file ${fileName}:`, error);
+            new Notice(`Error processing ${fileName}: ${error.message}`);
+        }
+    }
+
 
 	async ensureAllFoldersExist(mySettings: CreateNoteSettings): Promise<boolean> {
 
@@ -170,7 +199,7 @@ export default class createNotePlugin extends Plugin {
 
 }
 
-
+/*
 class SampleModal extends Modal {
 	constructor(app: App) {
 		super(app);
@@ -187,6 +216,7 @@ class SampleModal extends Modal {
 	}
 }
 	
+*/
 
 class FolderSuggest extends AbstractInputSuggest<TFolder> {
 	constructor(app: App, private inputEl: HTMLInputElement) {
