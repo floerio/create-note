@@ -1,11 +1,15 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, AbstractInputSuggest, TFolder } from 'obsidian';
 
 interface CreateNoteSettings {
-	mySetting: string;
+	inputFolderPath: string;
+	noteFolderPath: string;
+	attachementFolderPath: string;
 }
 
 const DEFAULT_SETTINGS: CreateNoteSettings = {
-	mySetting: 'default'
+	inputFolderPath: '/_input',
+	noteFolderPath: '_unsortiert',
+	attachementFolderPath: '_unsortiert/_files'
 }
 
 export default class createNotePlugin extends Plugin {
@@ -95,15 +99,51 @@ class SampleModal extends Modal {
 	}
 
 	onOpen() {
-		const {contentEl} = this;
+		const { contentEl } = this;
 		contentEl.setText('Woah!');
 	}
 
 	onClose() {
-		const {contentEl} = this;
+		const { contentEl } = this;
 		contentEl.empty();
 	}
 }
+
+class FolderSuggest extends AbstractInputSuggest<TFolder> {
+	constructor(app: App, private inputEl: HTMLInputElement) {
+		super(app, inputEl);
+	}
+
+	// Called when suggestions need to be calculated
+	getSuggestions(inputStr: string): TFolder[] {
+		const folders: TFolder[] = [];
+		ObsidianVaultTraversal(this.app.vault.getRoot(), folders);
+		return folders.filter(folder => folder.path.toLowerCase().includes(inputStr.toLowerCase()));
+	}
+
+	// Renders a suggestion item
+	renderSuggestion(folder: TFolder, el: HTMLElement) {
+		el.setText(folder.path);
+	}
+
+	// Sets the value to the input on selection
+	selectSuggestion(folder: TFolder) {
+		this.inputEl.value = folder.path;
+		this.inputEl.trigger("input");
+		this.close();
+	}
+}
+
+// Helper function to recursively gather all folders in the vault
+function ObsidianVaultTraversal(folder: TFolder, result: TFolder[]) {
+	result.push(folder);
+	for (const child of folder.children) {
+		if (child instanceof TFolder) {
+			ObsidianVaultTraversal(child, result);
+		}
+	}
+}
+
 
 class CreateNoteSettingTab extends PluginSettingTab {
 	plugin: createNotePlugin;
@@ -114,19 +154,53 @@ class CreateNoteSettingTab extends PluginSettingTab {
 	}
 
 	display(): void {
-		const {containerEl} = this;
+		const { containerEl } = this;
 
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
-				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
+			.setName("Input Folder")
+			.setDesc("Folder with new files")
+			.addText(text => {
+				text.inputEl.placeholder = "Start typing to search folders";
+				text.setValue(this.plugin.settings.inputFolderPath ?? "");
+				new FolderSuggest(this.app, text.inputEl);
+
+				// Save selected folder to settings
+				text.onChange(async (value) => {
+					this.plugin.settings.inputFolderPath = value;
 					await this.plugin.saveSettings();
-				}));
+				});
+			});
+			new Setting(containerEl)
+			.setName("Note Folder")
+			.setDesc("Folder where new notes are placed")
+			.addText(text => {
+				text.inputEl.placeholder = "Start typing to search folders";
+				text.setValue(this.plugin.settings.noteFolderPath ?? "");
+				new FolderSuggest(this.app, text.inputEl);
+
+				// Save selected folder to settings
+				text.onChange(async (value) => {
+					this.plugin.settings.noteFolderPath = value;
+					await this.plugin.saveSettings();
+				});
+			});
+			new Setting(containerEl)
+			.setName("Attachement folder")
+			.setDesc("Folder where attachements are stored")
+			.addText(text => {
+				text.inputEl.placeholder = "Start typing to search folders";
+				text.setValue(this.plugin.settings.attachementFolderPath ?? "");
+				new FolderSuggest(this.app, text.inputEl);
+
+				// Save selected folder to settings
+				text.onChange(async (value) => {
+					this.plugin.settings.attachementFolderPath = value;
+					await this.plugin.saveSettings();
+				});
+			});
 	}
 }
+
+
