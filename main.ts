@@ -152,8 +152,11 @@ export default class createNotePlugin extends Plugin {
         try {
             // first move the file to the attachments folder
 			const fileToRename = this.app.vault.getFileByPath(filePath);
-            const targetFilePath = `${basePath}/${this.settings.attachementFolderPath}/${fileName}`;
-			await this.app.vault.rename(fileToRename,targetFilePath)
+			if (!fileToRename) {
+				throw new Error(`File not found: ${filePath}`);
+			}
+			const targetFilePath = `${basePath}/${this.settings.attachementFolderPath}/${fileName}`;
+			await this.app.vault.rename(fileToRename, targetFilePath);
            
 
 			/*
