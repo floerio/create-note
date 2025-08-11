@@ -119,6 +119,7 @@ export default class createNotePlugin extends Plugin {
 			}
 
 			// get base path for the vault
+			// more secrets to reveal
 			const basePath = (this.app.vault.adapter as any).basePath;
 
 			const inputFolderPath = normalizePath(basePath + '/' + this.settings.inputFolderPath);
