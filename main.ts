@@ -119,22 +119,22 @@ export default class createNotePlugin extends Plugin {
 			}
 
 			// get base path for the vault
-			const basePath = normalizePath((this.app.vault.adapter as any).basePath);
+			const basePath = (this.app.vault.adapter as any).basePath;
 			
-			const inputFolderPath = basePath + normalizePath('/' + this.settings.inputFolderPath);
+			const inputFolderPath = normalizePath(basePath + '/' + this.settings.inputFolderPath);
 			const files = readdirSync(inputFolderPath);
-			console.error('List of files:' + files)
+			// console.log('List of files:' + files)
 			let processedCount = 0;
 
 			// handle each file
 			for (const file of files) {
-				const filePath = join(inputFolderPath, file);
+				const inputFile = join(inputFolderPath + "/", file);
 
 				// Skip directories
-				if (statSync(filePath).isDirectory()) continue;
+				if (statSync(inputFile).isDirectory()) continue;
 
 				// Process the file
-				await this.processFile(filePath, file, basePath);
+				await this.processFile(file, basePath);
 				processedCount++;
 			}
 			
@@ -145,22 +145,28 @@ export default class createNotePlugin extends Plugin {
 			new Notice(`Error: ${error.message}`);
 		}
 	}
-	 async processFile(filePath: string, fileName: string, basePath: string) {
-        // Generate a safe note title from filename (removing extension)
 
-       
+
+	//
+	// process one file: move it and create note for it
+	//
+	async processFile(fileName: string, basePath: string) {
+
+		const sourceFile = join(this.settings.inputFolderPath + "/", fileName );
+		const targetFile = join(this.settings.attachementFolderPath + "/", fileName);
+
         try {
             // first move the file to the attachments folder
-			const fileToRename = this.app.vault.getFileByPath(filePath);
+			const fileToRename = this.app.vault.getFileByPath(sourceFile);
 			if (!fileToRename) {
-				throw new Error(`File not found: ${filePath}`);
+				throw new Error(`File not found: ${sourceFile}`);
 			}
-			const targetFilePath = `${basePath}/${this.settings.attachementFolderPath}/${fileName}`;
-			await this.app.vault.rename(fileToRename, targetFilePath);
+			//const targetFilePath = `${basePath}/${this.settings.attachementFolderPath}/${fileName}`;
+			await this.app.vault.rename(fileToRename, targetFile);
            
 
 			/*
-
+			// Generate a safe note title from filename (removing extension)
 			// prepare names for note and its path
 			const noteTitle = basename(fileName, extname(fileName)).replace(/[^\w\s-]/g, '');
         	const notePath = `${basePath}/${this.settings.noteFolderPath}/${noteTitle}.md`;
@@ -174,7 +180,7 @@ export default class createNotePlugin extends Plugin {
 
             new Notice(`Created note for: ${fileName}`);
         } catch (error) {
-            console.error(`Error processing file ${fileName}:`, error);
+            console.error(`Error processing file: `, error);
             new Notice(`Error processing ${fileName}: ${error.message}`);
         }
     }
