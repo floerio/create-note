@@ -76,11 +76,11 @@ export default class createNotePlugin extends Plugin {
 			}
 		});
 		*/
-		
+
 		// This adds a settings tab so the user can configure various aspects of the plugin
 		this.addSettingTab(new CreateNoteSettingTab(this.app, this));
-		
-		
+
+
 		/*
 		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
 		// Using this function will automatically remove the event listener when this plugin is disabled.
@@ -88,7 +88,7 @@ export default class createNotePlugin extends Plugin {
 			console.log('click', evt);
 		});
 		*/
-		
+
 		/*
 		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
 		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
@@ -120,7 +120,7 @@ export default class createNotePlugin extends Plugin {
 
 			// get base path for the vault
 			const basePath = (this.app.vault.adapter as any).basePath;
-			
+
 			const inputFolderPath = normalizePath(basePath + '/' + this.settings.inputFolderPath);
 			const files = readdirSync(inputFolderPath);
 			// console.log('List of files:' + files)
@@ -137,7 +137,7 @@ export default class createNotePlugin extends Plugin {
 				await this.processFile(file, basePath);
 				processedCount++;
 			}
-			
+
 			new Notice(`Processed ${processedCount} files`);
 
 		} catch (error) {
@@ -152,38 +152,36 @@ export default class createNotePlugin extends Plugin {
 	//
 	async processFile(fileName: string, basePath: string) {
 
-		const sourceFile = join(this.settings.inputFolderPath + "/", fileName );
+		const sourceFile = join(this.settings.inputFolderPath + "/", fileName);
 		const targetFile = join(this.settings.attachementFolderPath + "/", fileName);
 
-        try {
-            // first move the file to the attachments folder
+		try {
+			// first move the file to the attachments folder
 			const fileToRename = this.app.vault.getFileByPath(sourceFile);
 			if (!fileToRename) {
 				throw new Error(`File not found: ${sourceFile}`);
 			}
 			//const targetFilePath = `${basePath}/${this.settings.attachementFolderPath}/${fileName}`;
 			await this.app.vault.rename(fileToRename, targetFile);
-           
 
-			/*
 			// Generate a safe note title from filename (removing extension)
-			// prepare names for note and its path
-			const noteTitle = basename(fileName, extname(fileName)).replace(/[^\w\s-]/g, '');
-        	const notePath = `${basePath}/${this.settings.noteFolderPath}/${noteTitle}.md`;
+			const noteTitle = createDatePrefix() + " " + basename(fileName, extname(fileName)).replace(/[^\w\s-]/g, '');
+
+			const notePath = join(this.settings.noteFolderPath, noteTitle + ".md");
 
 			// Create note content with template and file link
-            const noteContent = this.createNoteContent(fileName, noteTitle);
+			const noteContent = this.createNoteContent(targetFile, noteTitle);
 
-            // Create the note file in vault
-            await this.app.vault.create(notePath, noteContent);
-			*/
+			// Create the note file in vault
+			await this.app.vault.create(notePath, noteContent);
+			
 
-            new Notice(`Created note for: ${fileName}`);
-        } catch (error) {
-            console.error(`Error processing file: `, error);
-            new Notice(`Error processing ${fileName}: ${error.message}`);
-        }
-    }
+			new Notice(`Created note for: ${fileName}`);
+		} catch (error) {
+			console.error(`Error processing file: `, error);
+			new Notice(`Error processing ${fileName}: ${error.message}`);
+		}
+	}
 
 
 	async ensureAllFoldersExist(mySettings: CreateNoteSettings): Promise<boolean> {
@@ -205,6 +203,22 @@ export default class createNotePlugin extends Plugin {
 
 		return true;
 	}
+
+	createNoteContent(attachementFile: string, noteTitle: string): string {
+        /*
+		// Replace placeholders in template
+        let content = this.settings.templateContent
+            .replace(/\{filename\}/g, fileName)
+            .replace(/\{title\}/g, noteTitle)
+            .replace(/\{date\}/g, new Date().toISOString().split('T')[0]);
+
+        */
+	   let content = "MY FIRST NOTE"
+		// Add file link
+	    content += `\n\n![[${attachementFile}]]`;
+        
+        return content;
+    }
 
 }
 
@@ -261,6 +275,23 @@ function ObsidianVaultTraversal(folder: TFolder, result: TFolder[]) {
 		}
 	}
 }
+
+// helper fuction to create prefix string
+function createDatePrefix(): string {
+	// Create a new Date object
+	const currentDate = new Date();
+
+	// Get the year, month, and day components
+	const year = currentDate.getFullYear();
+	const month = String(currentDate.getMonth() + 1).padStart(2, '0'); // Months are zero-based
+	const day = String(currentDate.getDate()).padStart(2, '0');
+
+	// Format the date as "YYYYMMDD"
+	const formattedDate = `${year}${month}${day}`;
+
+	return formattedDate;
+}
+
 
 class CreateNoteSettingTab extends PluginSettingTab {
 	plugin: createNotePlugin;
