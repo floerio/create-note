@@ -156,7 +156,7 @@ export default class createNotePlugin extends Plugin {
 		const targetFile = join(this.settings.attachementFolderPath + "/", fileName);
 
 		try {
-			// first move the file to the attachments folder
+			// first move the file to the attachments folder xxx
 			const fileToRename = this.app.vault.getFileByPath(sourceFile);
 			if (!fileToRename) {
 				throw new Error(`File not found: ${sourceFile}`);
