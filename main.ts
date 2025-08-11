@@ -7,12 +7,18 @@ interface CreateNoteSettings {
 	inputFolderPath: string;
 	noteFolderPath: string;
 	attachementFolderPath: string;
+	useTemplate: boolean;
+	templateFolderPath: string;
+	importTemplate: string;
 }
 
 const DEFAULT_SETTINGS: CreateNoteSettings = {
 	inputFolderPath: '_input',
 	noteFolderPath: '_unsortiert',
-	attachementFolderPath: '_unsortiert/_files'
+	attachementFolderPath: '_unsortiert/_files',
+	useTemplate: true,
+	templateFolderPath: '_templates',
+	importTemplate: 'createNoteTemplate.md'
 }
 
 export default class createNotePlugin extends Plugin {
@@ -201,18 +207,48 @@ export default class createNotePlugin extends Plugin {
 			return false;
 		}
 
+		if (!await this.app.vault.adapter.exists(mySettings.templateFolderPath)) {
+			new Notice(`Folder ${mySettings.templateFolderPath} does not exists`);
+			return false;
+		}
+
+		if (mySettings.useTemplate) {
+			if (!await this.app.vault.adapter.exists(mySettings.templateFolderPath+"/"+mySettings.importTemplate)) {
+				new Notice(`Template ${mySettings.importTemplate} does not exists`);
+				return false;
+			}
+		}
+
+
 		return true;
 	}
 
 	createNoteContent(attachementFile: string, noteTitle: string): string {
+
+		// check if template is set
+		if (this.settings.useTemplate) {
+			
+			// get the template file
+			const templateFileName = join(this.settings.templateFolderPath + "/", this.settings.importTemplate)
+			const templateFile = this.app.vault.getFileByPath(templateFileName);
+			if (!templateFile) {
+				throw new Error(`Template file not found: ${templateFileName}`);
+			}
+
+			// get the content of the template file
+			const fileContent = this.app.vault.read(templateFile);
+			console.log("File: " + fileContent);
+
+		}
+
         /*
 		// Replace placeholders in template
         let content = this.settings.templateContent
             .replace(/\{filename\}/g, fileName)
             .replace(/\{title\}/g, noteTitle)
             .replace(/\{date\}/g, new Date().toISOString().split('T')[0]);
-
-        */
+		*/
+        
 	   let content = "MY FIRST NOTE"
 		// Add file link
 	    content += `\n\n![[${attachementFile}]]`;
@@ -345,6 +381,46 @@ class CreateNoteSettingTab extends PluginSettingTab {
 				// Save selected folder to settings
 				text.onChange(async (value) => {
 					this.plugin.settings.attachementFolderPath = value;
+					await this.plugin.saveSettings();
+				});
+			});
+			
+		new Setting(containerEl)
+			.setName("Use template?")
+			.setDesc("Use a template for the new note?")
+			.addToggle(toggle => toggle 
+				.setValue(this.plugin.settings.useTemplate ?? "")
+				.onChange(async (value) => {
+					this.plugin.settings.useTemplate = value;
+					await this.plugin.saveSettings();
+				}));
+
+			new Setting(containerEl)
+			.setName("Template folder")
+			.setDesc("Folder where templates are stored")
+			.addText(text => {
+				text.inputEl.placeholder = "Start typing to search folders";
+				text.setValue(this.plugin.settings.templateFolderPath ?? "");
+				new FolderSuggest(this.app, text.inputEl);
+
+				// Save selected folder to settings
+				text.onChange(async (value) => {
+					this.plugin.settings.templateFolderPath = value;
+					await this.plugin.saveSettings();
+				});
+			});
+
+			new Setting(containerEl)
+			.setName("Template")
+			.setDesc("Template to be used. Ignored if empty")
+			.addText(text => {
+				text.inputEl.placeholder = "Start typing to search for template";
+				text.setValue(this.plugin.settings.importTemplate ?? "");
+				// new FolderSuggest(this.app, text.inputEl);
+
+				// Save selected folder to settings
+				text.onChange(async (value) => {
+					this.plugin.settings.importTemplate = value;
 					await this.plugin.saveSettings();
 				});
 			});
