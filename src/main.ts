@@ -1,6 +1,9 @@
 import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, AbstractInputSuggest, TFolder, TFile, normalizePath } from 'obsidian';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, copyFile } from 'fs';
 import { join, basename, extname } from 'path';
+import * as path from "path";
+
+
 // import { copy } from 'fs-extra';
 
 interface CreateNoteSettings {
@@ -38,67 +41,9 @@ export default class createNotePlugin extends Plugin {
 		const statusBarItemEl = this.addStatusBarItem();
 		statusBarItemEl.setText('Status Bar Text');
 
-		/*
-		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-sample-modal-simple',
-			name: 'Open sample modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
-			}
-		});
-		*/
-
-		/*
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'sample-editor-command',
-			name: 'Sample editor command',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				console.log(editor.getSelection());
-				editor.replaceSelection('Sample Editor Command');
-			}
-		});
-		*/
-
-		/*
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-sample-modal-complex',
-			name: 'Open sample modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
-
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
-				}
-			}
-		});
-		*/
-
 		// This adds a settings tab so the user can configure various aspects of the plugin
 		this.addSettingTab(new CreateNoteSettingTab(this.app, this));
 
-
-		/*
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			console.log('click', evt);
-		});
-		*/
-
-		/*
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
-		*/
 	}
 
 	onunload() {
@@ -139,8 +84,19 @@ export default class createNotePlugin extends Plugin {
 				// Skip directories
 				if (statSync(inputFile).isDirectory()) continue;
 
-				// Process the file
-				await this.processFile(file, basePath);
+				const ext = path.extname(inputFile);
+				switch (ext) {
+					case ".eml":
+						await this.processEmlFile(file, basePath)
+						break;
+
+					case ".md":
+						continue;
+					
+					default:
+						await this.processStandardFile(file, basePath);;
+				}
+
 				processedCount++;
 			}
 
@@ -152,11 +108,16 @@ export default class createNotePlugin extends Plugin {
 		}
 	}
 
+	//
+	// process EML file: move it, split the content with files and create note for it
+	//
+	async processEMLFile(fileName: string, basePath: string) {
+	}
 
 	//
-	// process one file: move it and create note for it
+	// process standard file: move it and create note for it
 	//
-	async processFile(fileName: string, basePath: string) {
+	async processStandardFile(fileName: string, basePath: string) {
 
 		const sourceFile = join(this.settings.inputFolderPath + "/", fileName);
 		const targetFile = join(this.settings.attachementFolderPath + "/", fileName);
