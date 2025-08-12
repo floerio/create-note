@@ -1,4 +1,4 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, AbstractInputSuggest, TFolder, normalizePath } from 'obsidian';
+import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, AbstractInputSuggest, TFolder, TFile, normalizePath } from 'obsidian';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, copyFile } from 'fs';
 import { join, basename, extname } from 'path';
 // import { copy } from 'fs-extra';
@@ -167,115 +167,103 @@ export default class createNotePlugin extends Plugin {
 			if (!fileToRename) {
 				throw new Error(`File not found: ${sourceFile}`);
 			}
-			//const targetFilePath = `${basePath}/${this.settings.attachementFolderPath}/${fileName}`;
 			await this.app.vault.rename(fileToRename, targetFile);
 
 			// Generate a safe note title from filename (removing extension)
 			const noteTitle = createDatePrefix() + " " + basename(fileName, extname(fileName)).replace(/[^\w\s-]/g, '');
-
 			const notePath = join(this.settings.noteFolderPath, noteTitle + ".md");
 
-			// Create note content with template and file link
-			const noteContent = this.createNoteContent(targetFile, noteTitle);
+			// create the content of the note: blank or by using a template
+			let noteContent = "";
+			// check if template is set
+			if (this.settings.useTemplate) {
+				// Create note content with template and file link
+				noteContent = await this.createNoteContent();
+			}
 
-			// Create the note file in vault
+			// add the file attachement link
+			noteContent += `\n\n![[${targetFile}]]`;
+
+			// Finally create the note file in vault
 			await this.app.vault.create(notePath, noteContent);
-			
 
 			new Notice(`Created note for: ${fileName}`);
+
 		} catch (error) {
 			console.error(`Error processing file: `, error);
 			new Notice(`Error processing ${fileName}: ${error.message}`);
 		}
 	}
 
-
 	async ensureAllFoldersExist(mySettings: CreateNoteSettings): Promise<boolean> {
 
-		if (!await this.app.vault.adapter.exists(mySettings.attachementFolderPath)) {
-			new Notice(`Folder ${mySettings.attachementFolderPath} does not exists`);
-			return false;
-		}
+		// Array of [folderPath, errorMessage]
+		const checks: [string, string][] = [
+			[mySettings.attachementFolderPath, `Folder ${mySettings.attachementFolderPath} does not exist`],
+			[mySettings.inputFolderPath, `Folder ${mySettings.inputFolderPath} does not exist`],
+			[mySettings.noteFolderPath, `Folder ${mySettings.noteFolderPath} does not exist`],
+			[mySettings.templateFolderPath, `Folder ${mySettings.templateFolderPath} does not exist`]
+		];
 
-		if (!await this.app.vault.adapter.exists(mySettings.inputFolderPath)) {
-			new Notice(`Folder ${mySettings.inputFolderPath} does not exists`);
-			return false;
-		}
-
-		if (!await this.app.vault.adapter.exists(mySettings.noteFolderPath)) {
-			new Notice(`Folder ${mySettings.noteFolderPath} does not exists`);
-			return false;
-		}
-
-		if (!await this.app.vault.adapter.exists(mySettings.templateFolderPath)) {
-			new Notice(`Folder ${mySettings.templateFolderPath} does not exists`);
-			return false;
-		}
-
+		// If template should be used, add it to the checks array
 		if (mySettings.useTemplate) {
-			if (!await this.app.vault.adapter.exists(mySettings.templateFolderPath+"/"+mySettings.importTemplate)) {
-				new Notice(`Template ${mySettings.importTemplate} does not exists`);
+			checks.push([
+				`${mySettings.templateFolderPath}/${mySettings.importTemplate}`,
+				`Template ${mySettings.importTemplate} does not exist`
+			]);
+		}
+
+		for (const [path, msg] of checks) {
+			if (!await this.app.vault.adapter.exists(path)) {
+				new Notice(msg);
 				return false;
 			}
 		}
 
-
 		return true;
+
 	}
 
-	createNoteContent(attachementFile: string, noteTitle: string): string {
+	async createNoteContent(): Promise<string> {
 
-		// check if template is set
-		if (this.settings.useTemplate) {
-			
+		try {
+
 			// get the template file
 			const templateFileName = join(this.settings.templateFolderPath + "/", this.settings.importTemplate)
 			const templateFile = this.app.vault.getFileByPath(templateFileName);
-			if (!templateFile) {
+
+			// template found?
+			if (!(templateFile instanceof TFile)) {
 				throw new Error(`Template file not found: ${templateFileName}`);
 			}
 
 			// get the content of the template file
-			const fileContent = this.app.vault.read(templateFile);
-			console.log("File: " + fileContent);
+			const content = await this.app.vault.read(templateFile);
+			//console.log("Template content:", JSON.stringify(content));
 
+			// replace the tag placeholder
+			const date = new Date();
+			const formattedDate = date.toLocaleDateString('de-DE', {
+				day: '2-digit',
+				month: '2-digit',
+				year: 'numeric'
+			}); // German format: TT.MM.JJJJ
+
+			let newContent = content.replace(/%date%/g, formattedDate);
+
+			console.log("File:`\n" + newContent);
+
+			return newContent;
+
+		} catch (error) {
+			console.error("Failed to create note content: ", error);
+			new Notice("Unable to create note content");
+			return '';
 		}
 
-        /*
-		// Replace placeholders in template
-        let content = this.settings.templateContent
-            .replace(/\{filename\}/g, fileName)
-            .replace(/\{title\}/g, noteTitle)
-            .replace(/\{date\}/g, new Date().toISOString().split('T')[0]);
-		*/
-        
-	   let content = "MY FIRST NOTE"
-		// Add file link
-	    content += `\n\n![[${attachementFile}]]`;
-        
-        return content;
-    }
+	}
 
 }
-
-/*
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
-	}
-
-	onOpen() {
-		const { contentEl } = this;
-		contentEl.setText('Woah!');
-	}
-
-	onClose() {
-		const { contentEl } = this;
-		contentEl.empty();
-	}
-}
-	
-*/
 
 class FolderSuggest extends AbstractInputSuggest<TFolder> {
 	constructor(app: App, private inputEl: HTMLInputElement) {
@@ -342,6 +330,8 @@ class CreateNoteSettingTab extends PluginSettingTab {
 
 		containerEl.empty();
 
+		let inputArray: HTMLInputElement[] = [];
+
 		new Setting(containerEl)
 			.setName("Input Folder")
 			.setDesc("Folder with new files")
@@ -384,18 +374,25 @@ class CreateNoteSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 				});
 			});
-			
+
+		// let inputTemplateEnabled: HTMLInputElement;
 		new Setting(containerEl)
 			.setName("Use template?")
 			.setDesc("Use a template for the new note?")
-			.addToggle(toggle => toggle 
-				.setValue(this.plugin.settings.useTemplate ?? "")
-				.onChange(async (value) => {
+			.addToggle(toggle => {
+				toggle.setValue(this.plugin.settings.useTemplate ?? "")
+				toggle.onChange(async (value) => {
 					this.plugin.settings.useTemplate = value;
 					await this.plugin.saveSettings();
-				}));
+					inputArray.forEach(input => input.disabled = !value);
+					updateDependentFields(!value);
+				});
+				// inputTemplateEnabled = toggle.toggleEl
+			});
 
-			new Setting(containerEl)
+
+		let inputTemplateFolder: Setting;
+		inputTemplateFolder = new Setting(containerEl)
 			.setName("Template folder")
 			.setDesc("Folder where templates are stored")
 			.addText(text => {
@@ -408,9 +405,11 @@ class CreateNoteSettingTab extends PluginSettingTab {
 					this.plugin.settings.templateFolderPath = value;
 					await this.plugin.saveSettings();
 				});
+				inputArray.push(text.inputEl);
 			});
 
-			new Setting(containerEl)
+		let inputTemplateName: Setting;
+		inputTemplateName = new Setting(containerEl)
 			.setName("Template")
 			.setDesc("Template to be used. Ignored if empty")
 			.addText(text => {
@@ -423,8 +422,43 @@ class CreateNoteSettingTab extends PluginSettingTab {
 					this.plugin.settings.importTemplate = value;
 					await this.plugin.saveSettings();
 				});
+				inputArray.push(text.inputEl);
 			});
+
+		function updateDependentFields(disabled: boolean) {
+			// Add/remove CSS class
+			[inputTemplateFolder, inputTemplateName].forEach(setting => {
+				setting.settingEl.classList.toggle("custom-disabled", disabled);
+			});
+			/*
+			// Set disabled and tooltip state
+			inputTemplateFolder.disabled = disabled;
+			inputTemplateName.disabled = disabled;
+			optionBInput.title = disabled
+				? "Disabled because Option A is off" : "";
+			optionCInput.title = disabled
+				? "Disabled because Option A is off" : "";
+			// Update descriptions for better UX
+			optionBSetting.setDesc(
+				disabled
+					? "Disabled—enable Option A to activate."
+					: "You can edit this field."
+			);
+			optionCSetting.setDesc(
+				disabled
+					? "Disabled—enable Option A to activate."
+					: "You can edit this field."
+			);*/
+		}
+
+/*
+		const enabled = this.plugin.settings.useTemplate === true;
+		inputArray.forEach(input => input.disabled = !enabled);
+*/
+		updateDependentFields(!this.plugin.settings.useTemplate);
 	}
+
+
 }
 
 
