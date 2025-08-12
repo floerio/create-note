@@ -1,0 +1,132 @@
+
+
+npm install mailparser
+
+----------
+--------
+
+
+
+import { Plugin, Vault, TFile, normalizePath, Notice } from 'obsidian';
+import { simpleParser, ParsedMail } from 'mailparser';
+
+export default class EMLHandlerPlugin extends Plugin {
+  async handleEMLFile(file: TFile) {
+    if (!file.path.endsWith('.eml')) return;
+
+    // 1. Read eml file contents
+    const emlBuffer = await this.app.vault.readBinary(file);
+
+    // 2. Parse eml file
+    const parsed: ParsedMail = await simpleParser(emlBuffer);
+
+    // 3. Create note with message text
+    const noteContent = `# ${parsed.subject || 'No Subject'}\n\n${parsed.text}\n`;
+    const noteFileName = this.getSuggestedNoteFileName(parsed);
+    const notePath = normalizePath(`Emails/${noteFileName}.md`);
+    await this.app.vault.create(notePath, noteContent);
+
+    // 4. Save attachments to specified folder
+    if (parsed.attachments && parsed.attachments.length > 0) {
+      const attachFolder = `Emails/Attachments/${noteFileName}`;
+      await this.createFolderIfNotExists(attachFolder);
+
+      for (const attach of parsed.attachments) {
+        const attachPath = normalizePath(`${attachFolder}/${attach.filename}`);
+        await this.app.vault.createBinary(attachPath, attach.content);
+        // 5. Add links to attachments in note
+        await this.appendToNote(notePath, `![[${attachPath}]]\n`);
+      }
+    }
+
+    new Notice("EML imported successfully.");
+  }
+
+  getSuggestedNoteFileName(parsed: ParsedMail) {
+    const base = parsed.subject?.replace(/[\\/:*?"<>|]/g, '') || 'Email';
+    const dateStr = parsed.date?.toISOString().split('T')[0] || 'UnknownDate';
+    return `${dateStr} ${base}`.slice(0, 50);
+  }
+
+  async createFolderIfNotExists(path: string) {
+    try { await this.app.vault.createFolder(path); } catch (e) { /* Folder likely exists */ }
+  }
+
+  async appendToNote(notePath: string, text: string) {
+    const file = this.app.vault.getAbstractFileByPath(notePath);
+    if (file instanceof TFile) {
+      const content = await this.app.vault.read(file);
+      await this.app.vault.modify(file, content + text);
+    }
+  }
+}
+
+
+---------------
+---------------
+
+import { Plugin, TFile, normalizePath, Notice } from 'obsidian';
+import { simpleParser, ParsedMail } from 'mailparser';
+
+export default class EMLAutoImporter extends Plugin {
+  async onload() {
+    // Watch for newly created files
+    this.registerEvent(
+      this.app.vault.on('create', async (file) => {
+        if (file instanceof TFile && file.extension === 'eml') {
+          await this.handleEMLFile(file);
+        }
+      })
+    );
+  }
+
+  async handleEMLFile(file: TFile) {
+    try {
+      const emlBuffer = await this.app.vault.readBinary(file);
+      const parsed: ParsedMail = await simpleParser(emlBuffer);
+
+      // File naming
+      const noteFileName = this.getSuggestedNoteFileName(parsed);
+      const notePath = normalizePath(`Emails/${noteFileName}.md`);
+
+      // Create Mail Note
+      const noteContent = `# ${parsed.subject || 'No Subject'}\n\n${parsed.text}\n`;
+      const noteFile = await this.app.vault.create(notePath, noteContent);
+
+      // Save Attachments
+      if (parsed.attachments?.length) {
+        const attachFolder = `Emails/Attachments/${noteFileName}`;
+        await this.createFolderIfNotExists(attachFolder);
+
+        for (const attach of parsed.attachments) {
+          if (!attach.filename) continue;
+          const attachPath = normalizePath(`${attachFolder}/${attach.filename}`);
+          await this.app.vault.createBinary(attachPath, attach.content);
+          // Add link to attachment in note
+          await this.appendToNote(noteFile, `![[${attachPath}]]\n`);
+        }
+      }
+
+      new Notice('EML import complete');
+    } catch (err) {
+      new Notice('Failed to import EML file');
+      console.error(err);
+    }
+  }
+
+  getSuggestedNoteFileName(parsed: ParsedMail) {
+    const base = parsed.subject?.replace(/[\\/:*?"<>|]/g, '') ?? 'Email';
+    const dateStr = parsed.date?.toISOString().slice(0, 10) ?? 'UnknownDate';
+    return `${dateStr} ${base}`.slice(0, 60);
+  }
+
+  async createFolderIfNotExists(path: string) {
+    try { await this.app.vault.createFolder(path); } catch {}
+  }
+
+  async appendToNote(file: TFile, text: string) {
+    const current = await this.app.vault.read(file);
+    await this.app.vault.modify(file, current + text);
+  }
+}
+

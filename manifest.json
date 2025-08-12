@@ -7,5 +7,6 @@
 	"author": "Oliver Flöricke",
 	"authorUrl": "t.b.d.",
 	"fundingUrl": "t.b.d.",
-	"isDesktopOnly": false
+	"isDesktopOnly": false,
+	"main": "dist/main.js"
 }
