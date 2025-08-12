@@ -1,7 +1,9 @@
 import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, AbstractInputSuggest, TFolder, TFile, normalizePath } from 'obsidian';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, copyFile } from 'fs';
 import { join, basename, extname } from 'path';
+import { simpleParser, ParsedMail } from 'mailparser';
 import * as path from 'path';
+import { error } from 'console';
 
 interface CreateNoteSettings {
 	inputFolderPath: string;
@@ -81,7 +83,7 @@ export default class createNotePlugin extends Plugin {
 				if (statSync(inputFile).isDirectory()) continue;
 
 				let ext = path.extname(inputFile);
-	
+
 				switch (ext) {
 					case ".eml":
 						await this.processEmlFile(file, basePath)
@@ -113,14 +115,50 @@ export default class createNotePlugin extends Plugin {
 		const targetFile = join(this.settings.attachementFolderPath + "/", fileName);
 
 		try {
-			// first move the file to the attachments folder 
-			await this.moveInputFile(sourceFile, targetFile);
-
 			// Generate a safe note title from filename (removing extension)
 			const noteTitle = this.createNameForNote(fileName);
 
-			// Generate a safe note title from filename (removing extension)
-			const noteNameWithPath = this.createNameForNote(fileName);
+			// Read eml file content and process ist
+			const realFile = this.app.vault.getAbstractFileByPath(fileName);
+			if (!(realFile instanceof TFile)) {
+				throw new Error("Can't read eml file");
+			}
+
+			// read the file
+			const emlBuffer = await this.app.vault.readBinary(realFile);
+			const nodeBuffer = Buffer.from(emlBuffer); // Node.js Buffer
+
+			// Parse the content
+			const parsed: ParsedMail = await simpleParser(nodeBuffer);
+
+			// create the content of the note: blank or by using a template
+			let noteContent = "";
+
+			// check if template is set
+			if (this.settings.useTemplate) {
+				// Create note content with template and file link
+				noteContent = await this.createNoteContent();
+			}
+
+			noteContent += `# ${parsed.subject || 'No Subject'}\n\n${parsed.text}\n`;
+
+			// Save attachments to specified folder
+			if (parsed.attachments && parsed.attachments.length > 0) {
+
+				for (const attach of parsed.attachments) {
+					const attachPath = normalizePath(`${this.settings.attachementFolderPath}/${attach.filename}`);
+					// Convert Buffer to ArrayBuffer using Uint8Array
+					const arrayBuffer = new Uint8Array(attach.content).buffer;
+					await this.app.vault.createBinary(attachPath, arrayBuffer as ArrayBuffer);
+					noteContent += `\n\n![[${attachPath}]]`;
+
+				}
+
+			}
+
+
+			// delete input file
+			//await this.moveInputFile(sourceFile, targetFile);
 
 		} catch (error) {
 			console.error(`Error processing file: `, error);
@@ -148,7 +186,7 @@ export default class createNotePlugin extends Plugin {
 			let noteContent = "";
 			// check if template is set
 			if (this.settings.useTemplate) {
-				// Create note content with template and file link
+				// Create note content with template 
 				noteContent = await this.createNoteContent();
 			}
 
