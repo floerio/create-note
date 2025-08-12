@@ -9,7 +9,7 @@ If your plugin does not need CSS, delete this file.
 /* Place this in your plugin's styles */
 .custom-disabled {
   opacity: 0.5 !important;
-  background: repeating-linear-gradient(135deg, #f2f2f2, #e0e0e0 10px, #d3d3d3 10px, #f0f0f0 20px) !important;
-  filter: grayscale(70%);
+  background: repeating-linear-gradient(35deg, #f2f2f2, #e0e0e0 10px, #d3d3d3 10px, #f0f0f0 20px) !important;
+  filter: grayscale(100%);
   pointer-events: none; /* Prevent interaction */
 }

@@ -392,6 +392,7 @@ class CreateNoteSettingTab extends PluginSettingTab {
 
 
 		let inputTemplateFolder: Setting;
+		let inputTemplatePathElement: HTMLInputElement;
 		inputTemplateFolder = new Setting(containerEl)
 			.setName("Template folder")
 			.setDesc("Folder where templates are stored")
@@ -406,9 +407,11 @@ class CreateNoteSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 				});
 				inputArray.push(text.inputEl);
+				inputTemplatePathElement = text.inputEl;
 			});
 
 		let inputTemplateName: Setting;
+		let inputTemplateNameElement: HTMLInputElement;
 		inputTemplateName = new Setting(containerEl)
 			.setName("Template")
 			.setDesc("Template to be used. Ignored if empty")
@@ -423,6 +426,7 @@ class CreateNoteSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 				});
 				inputArray.push(text.inputEl);
+				inputTemplateNameElement = text.inputEl;
 			});
 
 		function updateDependentFields(disabled: boolean) {
@@ -430,6 +434,7 @@ class CreateNoteSettingTab extends PluginSettingTab {
 			[inputTemplateFolder, inputTemplateName].forEach(setting => {
 				setting.settingEl.classList.toggle("custom-disabled", disabled);
 			});
+
 			/*
 			// Set disabled and tooltip state
 			inputTemplateFolder.disabled = disabled;
@@ -451,10 +456,10 @@ class CreateNoteSettingTab extends PluginSettingTab {
 			);*/
 		}
 
-/*
+
 		const enabled = this.plugin.settings.useTemplate === true;
 		inputArray.forEach(input => input.disabled = !enabled);
-*/
+
 		updateDependentFields(!this.plugin.settings.useTemplate);
 	}
 
