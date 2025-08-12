@@ -119,9 +119,9 @@ export default class createNotePlugin extends Plugin {
 			const noteTitle = this.createNameForNote(fileName);
 
 			// Read eml file content and process ist
-			const realFile = this.app.vault.getAbstractFileByPath(fileName);
+			const realFile = this.app.vault.getAbstractFileByPath(sourceFile);
 			if (!(realFile instanceof TFile)) {
-				throw new Error("Can't read eml file");
+				throw new Error(`Can't read eml file: ${sourceFile}`);
 			}
 
 			// read the file
