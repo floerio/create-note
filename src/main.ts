@@ -1,10 +1,7 @@
 import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, AbstractInputSuggest, TFolder, TFile, normalizePath } from 'obsidian';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, copyFile } from 'fs';
 import { join, basename, extname } from 'path';
-import * as path from "path";
-
-
-// import { copy } from 'fs-extra';
+import * as path from 'path';
 
 interface CreateNoteSettings {
 	inputFolderPath: string;
@@ -47,7 +44,6 @@ export default class createNotePlugin extends Plugin {
 	}
 
 	onunload() {
-
 	}
 
 	async loadSettings() {
@@ -84,7 +80,8 @@ export default class createNotePlugin extends Plugin {
 				// Skip directories
 				if (statSync(inputFile).isDirectory()) continue;
 
-				const ext = path.extname(inputFile);
+				let ext = path.extname(inputFile);
+	
 				switch (ext) {
 					case ".eml":
 						await this.processEmlFile(file, basePath)
@@ -92,7 +89,7 @@ export default class createNotePlugin extends Plugin {
 
 					case ".md":
 						continue;
-					
+
 					default:
 						await this.processStandardFile(file, basePath);;
 				}
@@ -111,7 +108,25 @@ export default class createNotePlugin extends Plugin {
 	//
 	// process EML file: move it, split the content with files and create note for it
 	//
-	async processEMLFile(fileName: string, basePath: string) {
+	async processEmlFile(fileName: string, basePath: string) {
+		const sourceFile = join(this.settings.inputFolderPath + "/", fileName);
+		const targetFile = join(this.settings.attachementFolderPath + "/", fileName);
+
+		try {
+			// first move the file to the attachments folder 
+			await this.moveInputFile(sourceFile, targetFile);
+
+			// Generate a safe note title from filename (removing extension)
+			const noteTitle = this.createNameForNote(fileName);
+
+			// Generate a safe note title from filename (removing extension)
+			const noteNameWithPath = this.createNameForNote(fileName);
+
+		} catch (error) {
+			console.error(`Error processing file: `, error);
+			new Notice(`Error processing ${fileName}: ${error.message}`);
+
+		}
 	}
 
 	//
@@ -124,15 +139,10 @@ export default class createNotePlugin extends Plugin {
 
 		try {
 			// first move the file to the attachments folder 
-			const fileToRename = this.app.vault.getFileByPath(sourceFile);
-			if (!fileToRename) {
-				throw new Error(`File not found: ${sourceFile}`);
-			}
-			await this.app.vault.rename(fileToRename, targetFile);
+			await this.moveInputFile(sourceFile, targetFile);
 
 			// Generate a safe note title from filename (removing extension)
-			const noteTitle = createDatePrefix() + " " + basename(fileName, extname(fileName)).replace(/[^\w\s-]/g, '');
-			const notePath = join(this.settings.noteFolderPath, noteTitle + ".md");
+			const noteNameWithPath = this.createNameForNote(fileName);
 
 			// create the content of the note: blank or by using a template
 			let noteContent = "";
@@ -146,7 +156,7 @@ export default class createNotePlugin extends Plugin {
 			noteContent += `\n\n![[${targetFile}]]`;
 
 			// Finally create the note file in vault
-			await this.app.vault.create(notePath, noteContent);
+			await this.app.vault.create(noteNameWithPath, noteContent);
 
 			new Notice(`Created note for: ${fileName}`);
 
@@ -154,6 +164,27 @@ export default class createNotePlugin extends Plugin {
 			console.error(`Error processing file: `, error);
 			new Notice(`Error processing ${fileName}: ${error.message}`);
 		}
+	}
+
+	createNameForNote(fileName: string): string {
+		const noteTitle = createDatePrefix() + " " + basename(fileName, extname(fileName)).replace(/[^\w\s-]/g, '');
+		return join(this.settings.noteFolderPath, noteTitle + ".md");
+	}
+
+	async moveInputFile(srcFile: string, targetFile: string) {
+		try {
+			const fileToRename = this.app.vault.getFileByPath(srcFile);
+			if (!fileToRename) {
+				throw new Error(`File not found: ${srcFile}`);
+			}
+			await this.app.vault.rename(fileToRename, targetFile);
+		} catch (error) {
+			console.error("File move failed: ", error);
+			new Notice(`File move failed for ${srcFile}`);
+
+		}
+		// first move the file to the attachments folder 
+
 	}
 
 	async ensureAllFoldersExist(mySettings: CreateNoteSettings): Promise<boolean> {
