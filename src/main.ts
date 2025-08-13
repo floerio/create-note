@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, copyFile } 
 import { join, basename, extname } from 'path';
 import { simpleParser, ParsedMail } from 'mailparser';
 import * as path from 'path';
+import { nanoid } from 'nanoid';
 import { error } from 'console';
 
 interface CreateNoteSettings {
@@ -12,6 +13,7 @@ interface CreateNoteSettings {
 	useTemplate: boolean;
 	templateFolderPath: string;
 	importTemplate: string;
+	deleteEmlFiles: boolean;
 }
 
 const DEFAULT_SETTINGS: CreateNoteSettings = {
@@ -20,7 +22,8 @@ const DEFAULT_SETTINGS: CreateNoteSettings = {
 	attachementFolderPath: '_unsortiert/_files',
 	useTemplate: true,
 	templateFolderPath: '_templates',
-	importTemplate: 'createNoteTemplate.md'
+	importTemplate: 'createNoteTemplate.md',
+	deleteEmlFiles: true
 }
 
 export default class createNotePlugin extends Plugin {
@@ -72,7 +75,6 @@ export default class createNotePlugin extends Plugin {
 
 			const inputFolderPath = normalizePath(basePath + '/' + this.settings.inputFolderPath);
 			const files = readdirSync(inputFolderPath);
-			// console.log('List of files:' + files)
 			let processedCount = 0;
 
 			// handle each file
@@ -111,54 +113,86 @@ export default class createNotePlugin extends Plugin {
 	// process EML file: move it, split the content with files and create note for it
 	//
 	async processEmlFile(fileName: string, basePath: string) {
+
 		const sourceFile = join(this.settings.inputFolderPath + "/", fileName);
-		const targetFile = join(this.settings.attachementFolderPath + "/", fileName);
+		// const targetFile = join(this.settings.attachementFolderPath + "/", fileName);
 
 		try {
 			// Generate a safe note title from filename (removing extension)
 			const noteTitle = this.createNameForNote(fileName);
 
-			// Read eml file content and process ist
-			const realFile = this.app.vault.getAbstractFileByPath(sourceFile);
-			if (!(realFile instanceof TFile)) {
+			//
+			// Read eml file content and process it
+			//
+
+			const emlInputFile = this.app.vault.getAbstractFileByPath(sourceFile);
+			if (!(emlInputFile instanceof TFile)) {
 				throw new Error(`Can't read eml file: ${sourceFile}`);
 			}
 
 			// read the file
-			const emlBuffer = await this.app.vault.readBinary(realFile);
+			const emlBuffer = await this.app.vault.readBinary(emlInputFile);
 			const nodeBuffer = Buffer.from(emlBuffer); // Node.js Buffer
 
 			// Parse the content
 			const parsed: ParsedMail = await simpleParser(nodeBuffer);
+
+			// uid for note and its files
+			const uuid = nanoid();
 
 			// create the content of the note: blank or by using a template
 			let noteContent = "";
 
 			// check if template is set
 			if (this.settings.useTemplate) {
-				// Create note content with template and file link
-				noteContent = await this.createNoteContent();
+				// Create note content with template 
+				noteContent = await this.createNoteContent(uuid);
 			}
 
-			noteContent += `# ${parsed.subject || 'No Subject'}\n\n${parsed.text}\n`;
+			noteContent += `**Subject: ${parsed.subject || 'No Subject'}**\n\n${parsed.text}\n`;
 
+			//
 			// Save attachments to specified folder
+			//
+
 			if (parsed.attachments && parsed.attachments.length > 0) {
-
 				for (const attach of parsed.attachments) {
-					const attachPath = normalizePath(`${this.settings.attachementFolderPath}/${attach.filename}`);
-					// Convert Buffer to ArrayBuffer using Uint8Array
-					const arrayBuffer = new Uint8Array(attach.content).buffer;
-					await this.app.vault.createBinary(attachPath, arrayBuffer as ArrayBuffer);
-					noteContent += `\n\n![[${attachPath}]]`;
 
+					// get file name and extension
+					const filename = attach.filename || '';
+					const ext = path.extname(filename);
+
+					// only proceed if we have an extension, assuming that files w/o extension are no serious attachements
+					if (ext) {
+						const attachPath = normalizePath(`${this.settings.attachementFolderPath}/${uuid}_${filename}`);
+						// Convert Buffer to ArrayBuffer using Uint8Array
+						const arrayBuffer = new Uint8Array(attach.content).buffer;
+						await this.app.vault.createBinary(attachPath, arrayBuffer as ArrayBuffer);
+						noteContent += `\n\n![[${attachPath}]]`;
+					}
 				}
-
 			}
 
+			//
+			// Finally create the note file in vault
+			//
 
-			// delete input file
-			//await this.moveInputFile(sourceFile, targetFile);
+			// if it already exists, delete it first
+			const existing = this.app.vault.getAbstractFileByPath(noteTitle);
+			if (existing instanceof TFile) {
+				await this.app.vault.delete(existing);
+			}
+
+			// create it
+			await this.app.vault.create(noteTitle, noteContent);
+
+			
+			// delete input file if required
+			if (this.settings.deleteEmlFiles) {
+				await this.app.vault.delete(emlInputFile);
+			}
+
+			new Notice(`Created note for: ${fileName}`);
 
 		} catch (error) {
 			console.error(`Error processing file: `, error);
@@ -172,10 +206,13 @@ export default class createNotePlugin extends Plugin {
 	//
 	async processStandardFile(fileName: string, basePath: string) {
 
-		const sourceFile = join(this.settings.inputFolderPath + "/", fileName);
-		const targetFile = join(this.settings.attachementFolderPath + "/", fileName);
-
 		try {
+			// uid for note and its files
+			const uuid = nanoid();
+
+			const sourceFile = join(this.settings.inputFolderPath + "/", fileName);
+			const targetFile = join(this.settings.attachementFolderPath + "/", uuid + "_" + fileName);
+
 			// first move the file to the attachments folder 
 			await this.moveInputFile(sourceFile, targetFile);
 
@@ -184,10 +221,11 @@ export default class createNotePlugin extends Plugin {
 
 			// create the content of the note: blank or by using a template
 			let noteContent = "";
+
 			// check if template is set
 			if (this.settings.useTemplate) {
 				// Create note content with template 
-				noteContent = await this.createNoteContent();
+				noteContent = await this.createNoteContent(uuid);
 			}
 
 			// add the file attachement link
@@ -221,8 +259,6 @@ export default class createNotePlugin extends Plugin {
 			new Notice(`File move failed for ${srcFile}`);
 
 		}
-		// first move the file to the attachments folder 
-
 	}
 
 	async ensureAllFoldersExist(mySettings: CreateNoteSettings): Promise<boolean> {
@@ -251,11 +287,9 @@ export default class createNotePlugin extends Plugin {
 		}
 
 		return true;
-
 	}
 
-	async createNoteContent(): Promise<string> {
-
+	async createNoteContent(noteId: string): Promise<string> {
 		try {
 
 			// get the template file
@@ -279,9 +313,11 @@ export default class createNotePlugin extends Plugin {
 				year: 'numeric'
 			}); // German format: TT.MM.JJJJ
 
+			// replace the template placeholder
 			let newContent = content.replace(/%date%/g, formattedDate);
+			newContent = newContent.replace(/%id%/g, noteId);
 
-			console.log("File:`\n" + newContent);
+			// console.log("File:`\n" + newContent);
 
 			return newContent;
 
@@ -420,7 +456,6 @@ class CreateNoteSettingTab extends PluginSettingTab {
 				// inputTemplateEnabled = toggle.toggleEl
 			});
 
-
 		let inputTemplateFolder: Setting;
 		let inputTemplatePathElement: HTMLInputElement;
 		inputTemplateFolder = new Setting(containerEl)
@@ -457,6 +492,18 @@ class CreateNoteSettingTab extends PluginSettingTab {
 				});
 				inputArray.push(text.inputEl);
 				inputTemplateNameElement = text.inputEl;
+			});
+
+		// let inputTemplateEnabled: HTMLInputElement;
+		new Setting(containerEl)
+			.setName("Delete *.eml files?")
+			.setDesc("Delete converted eml files?")
+			.addToggle(toggle => {
+				toggle.setValue(this.plugin.settings.deleteEmlFiles ?? "")
+				toggle.onChange(async (value) => {
+					this.plugin.settings.deleteEmlFiles = value;
+					await this.plugin.saveSettings();
+				});
 			});
 
 		function updateDependentFields(disabled: boolean) {

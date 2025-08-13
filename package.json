@@ -6,7 +6,7 @@
 	"rootDir": "./src",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
-		"build": "esbuild src/main.ts --bundle --platform=node --target=es2020 --outfile=dist/main.js --external:obsidian",
+		"build": "esbuild src/main.ts --bundle --platform=node --target=es2020 --outfile=dist/main.js --external:obsidian --log-limit=0 ",
 		"version": "node version-bump.mjs && git add manifest.json versions.json"
 	},
 	"keywords": [],
@@ -24,6 +24,7 @@
 		"typescript": "4.7.4"
 	},
 	"dependencies": {
-		"mailparser": "^3.7.4"
+		"mailparser": "^3.7.4",
+		"nanoid": "^5.1.5"
 	}
 }
