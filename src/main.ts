@@ -15,6 +15,7 @@ interface CreateNoteSettings {
 	importTemplate: string;
 	deleteEmlFiles: boolean;
 	attachEmlFile: boolean;
+	ignoreHiddenFiles: boolean;
 }
 
 const DEFAULT_SETTINGS: CreateNoteSettings = {
@@ -25,7 +26,8 @@ const DEFAULT_SETTINGS: CreateNoteSettings = {
 	templateFolderPath: '_templates',
 	importTemplate: 'createNoteTemplate.md',
 	deleteEmlFiles: true,
-	attachEmlFile: true
+	attachEmlFile: true,
+	ignoreHiddenFiles: true
 }
 
 export default class createNotePlugin extends Plugin {
@@ -85,6 +87,9 @@ export default class createNotePlugin extends Plugin {
 
 				// Skip directories
 				if (statSync(inputFile).isDirectory()) continue;
+
+				// skip hidden files if required
+				if (this.settings.ignoreHiddenFiles && file.startsWith('.')) continue;
 
 				let ext = path.extname(inputFile);
 
@@ -442,6 +447,16 @@ class CreateNoteSettingTab extends PluginSettingTab {
 				// Save selected folder to settings
 				text.onChange(async (value) => {
 					this.plugin.settings.attachementFolderPath = value;
+					await this.plugin.saveSettings();
+				});
+			});
+		new Setting(containerEl)
+			.setName("Ignore hidden files?")
+			.setDesc("Enable if you want to ignore .name files in the import folder")
+			.addToggle(toggle => {
+				toggle.setValue(this.plugin.settings.ignoreHiddenFiles ?? "")
+				toggle.onChange(async (value) => {
+					this.plugin.settings.ignoreHiddenFiles = value;
 					await this.plugin.saveSettings();
 				});
 			});
