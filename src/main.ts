@@ -14,6 +14,7 @@ interface CreateNoteSettings {
 	templateFolderPath: string;
 	importTemplate: string;
 	deleteEmlFiles: boolean;
+	attachEmlFile: boolean;
 }
 
 const DEFAULT_SETTINGS: CreateNoteSettings = {
@@ -23,7 +24,8 @@ const DEFAULT_SETTINGS: CreateNoteSettings = {
 	useTemplate: true,
 	templateFolderPath: '_templates',
 	importTemplate: 'createNoteTemplate.md',
-	deleteEmlFiles: true
+	deleteEmlFiles: true,
+	attachEmlFile: true
 }
 
 export default class createNotePlugin extends Plugin {
@@ -115,7 +117,6 @@ export default class createNotePlugin extends Plugin {
 	async processEmlFile(fileName: string, basePath: string) {
 
 		const sourceFile = join(this.settings.inputFolderPath + "/", fileName);
-		// const targetFile = join(this.settings.attachementFolderPath + "/", fileName);
 
 		try {
 			// Generate a safe note title from filename (removing extension)
@@ -124,7 +125,6 @@ export default class createNotePlugin extends Plugin {
 			//
 			// Read eml file content and process it
 			//
-
 			const emlInputFile = this.app.vault.getAbstractFileByPath(sourceFile);
 			if (!(emlInputFile instanceof TFile)) {
 				throw new Error(`Can't read eml file: ${sourceFile}`);
@@ -142,19 +142,15 @@ export default class createNotePlugin extends Plugin {
 
 			// create the content of the note: blank or by using a template
 			let noteContent = "";
-
-			// check if template is set
 			if (this.settings.useTemplate) {
 				// Create note content with template 
 				noteContent = await this.createNoteContent(uuid);
 			}
-
 			noteContent += `**Subject: ${parsed.subject || 'No Subject'}**\n\n${parsed.text}\n`;
 
 			//
 			// Save attachments to specified folder
 			//
-
 			if (parsed.attachments && parsed.attachments.length > 0) {
 				for (const attach of parsed.attachments) {
 
@@ -173,6 +169,13 @@ export default class createNotePlugin extends Plugin {
 				}
 			}
 
+			// attache eml as well if requestes
+			if (this.settings.attachEmlFile) {
+				const targetFile = join(this.settings.attachementFolderPath + "/", uuid + "_" + fileName);
+				await this.moveInputFile(sourceFile, targetFile, true);
+				noteContent += `\n\n![[${targetFile}]]`;
+			}
+
 			//
 			// Finally create the note file in vault
 			//
@@ -186,7 +189,7 @@ export default class createNotePlugin extends Plugin {
 			// create it
 			await this.app.vault.create(noteTitle, noteContent);
 
-			
+
 			// delete input file if required
 			if (this.settings.deleteEmlFiles) {
 				await this.app.vault.delete(emlInputFile);
@@ -195,7 +198,7 @@ export default class createNotePlugin extends Plugin {
 			new Notice(`Created note for: ${fileName}`);
 
 		} catch (error) {
-			console.error(`Error processing file: `, error);
+			console.error(`Error processing eml file: `, error);
 			new Notice(`Error processing ${fileName}: ${error.message}`);
 
 		}
@@ -214,7 +217,7 @@ export default class createNotePlugin extends Plugin {
 			const targetFile = join(this.settings.attachementFolderPath + "/", uuid + "_" + fileName);
 
 			// first move the file to the attachments folder 
-			await this.moveInputFile(sourceFile, targetFile);
+			await this.moveInputFile(sourceFile, targetFile, false);
 
 			// Generate a safe note title from filename (removing extension)
 			const noteNameWithPath = this.createNameForNote(fileName);
@@ -237,7 +240,7 @@ export default class createNotePlugin extends Plugin {
 			new Notice(`Created note for: ${fileName}`);
 
 		} catch (error) {
-			console.error(`Error processing file: `, error);
+			console.error(`Error processing standard file: `, error);
 			new Notice(`Error processing ${fileName}: ${error.message}`);
 		}
 	}
@@ -247,13 +250,17 @@ export default class createNotePlugin extends Plugin {
 		return join(this.settings.noteFolderPath, noteTitle + ".md");
 	}
 
-	async moveInputFile(srcFile: string, targetFile: string) {
+	async moveInputFile(srcFile: string, targetFile: string, copyOnly: boolean) {
+		const fileToRename = this.app.vault.getFileByPath(srcFile);
 		try {
-			const fileToRename = this.app.vault.getFileByPath(srcFile);
 			if (!fileToRename) {
 				throw new Error(`File not found: ${srcFile}`);
 			}
-			await this.app.vault.rename(fileToRename, targetFile);
+			if (copyOnly) {
+				await this.app.vault.copy(fileToRename, targetFile);
+			} else {
+				await this.app.vault.rename(fileToRename, targetFile);
+			}
 		} catch (error) {
 			console.error("File move failed: ", error);
 			new Notice(`File move failed for ${srcFile}`);
@@ -326,9 +333,7 @@ export default class createNotePlugin extends Plugin {
 			new Notice("Unable to create note content");
 			return '';
 		}
-
 	}
-
 }
 
 class FolderSuggest extends AbstractInputSuggest<TFolder> {
@@ -441,24 +446,42 @@ class CreateNoteSettingTab extends PluginSettingTab {
 				});
 			});
 
-		// let inputTemplateEnabled: HTMLInputElement;
+		new Setting(containerEl)
+			.setName("Add eml file to new note?")
+			.setDesc("Enable if you want to attache the original eml file to the note")
+			.addToggle(toggle => {
+				toggle.setValue(this.plugin.settings.attachEmlFile ?? "")
+				toggle.onChange(async (value) => {
+					this.plugin.settings.attachEmlFile = value;
+					await this.plugin.saveSettings();
+				});
+			});
+
+		new Setting(containerEl)
+			.setName("Delete eml files?")
+			.setDesc("Enable if you want to delete the converted eml file")
+			.addToggle(toggle => {
+				toggle.setValue(this.plugin.settings.deleteEmlFiles ?? "")
+				toggle.onChange(async (value) => {
+					this.plugin.settings.deleteEmlFiles = value;
+					await this.plugin.saveSettings();
+				});
+			});
+
 		new Setting(containerEl)
 			.setName("Use template?")
-			.setDesc("Use a template for the new note?")
+			.setDesc("Enable if you want to use a template for the new note")
 			.addToggle(toggle => {
 				toggle.setValue(this.plugin.settings.useTemplate ?? "")
 				toggle.onChange(async (value) => {
 					this.plugin.settings.useTemplate = value;
 					await this.plugin.saveSettings();
 					inputArray.forEach(input => input.disabled = !value);
-					updateDependentFields(!value);
+					this.display();
 				});
-				// inputTemplateEnabled = toggle.toggleEl
 			});
 
-		let inputTemplateFolder: Setting;
-		let inputTemplatePathElement: HTMLInputElement;
-		inputTemplateFolder = new Setting(containerEl)
+		new Setting(containerEl)
 			.setName("Template folder")
 			.setDesc("Folder where templates are stored")
 			.addText(text => {
@@ -471,76 +494,50 @@ class CreateNoteSettingTab extends PluginSettingTab {
 					this.plugin.settings.templateFolderPath = value;
 					await this.plugin.saveSettings();
 				});
+
+				// change state
+				if (!this.plugin.settings.useTemplate) {
+					text.inputEl.style.backgroundColor = "#e0e0e0";
+					text.inputEl.style.opacity = "1";
+				} else {
+					text.inputEl.style.backgroundColor = "";
+					text.inputEl.style.opacity = "";
+				}
+
 				inputArray.push(text.inputEl);
-				inputTemplatePathElement = text.inputEl;
 			});
 
-		let inputTemplateName: Setting;
-		let inputTemplateNameElement: HTMLInputElement;
-		inputTemplateName = new Setting(containerEl)
+		new Setting(containerEl)
 			.setName("Template")
-			.setDesc("Template to be used. Ignored if empty")
+			.setDesc("The template to be used when creating the note")
 			.addText(text => {
-				text.inputEl.placeholder = "Start typing to search for template";
+				text.inputEl.placeholder = "Name of template";
 				text.setValue(this.plugin.settings.importTemplate ?? "");
-				// new FolderSuggest(this.app, text.inputEl);
 
-				// Save selected folder to settings
+				// Save template name to settings
 				text.onChange(async (value) => {
 					this.plugin.settings.importTemplate = value;
 					await this.plugin.saveSettings();
 				});
+
+				// change state
+				if (!this.plugin.settings.useTemplate) {
+					text.inputEl.style.backgroundColor = "#e0e0e0";
+					text.inputEl.style.opacity = "1";
+				} else {
+					text.inputEl.style.backgroundColor = "";
+					text.inputEl.style.opacity = "";
+				}
+
 				inputArray.push(text.inputEl);
-				inputTemplateNameElement = text.inputEl;
 			});
 
-		// let inputTemplateEnabled: HTMLInputElement;
-		new Setting(containerEl)
-			.setName("Delete *.eml files?")
-			.setDesc("Delete converted eml files?")
-			.addToggle(toggle => {
-				toggle.setValue(this.plugin.settings.deleteEmlFiles ?? "")
-				toggle.onChange(async (value) => {
-					this.plugin.settings.deleteEmlFiles = value;
-					await this.plugin.saveSettings();
-				});
-			});
 
-		function updateDependentFields(disabled: boolean) {
-			// Add/remove CSS class
-			[inputTemplateFolder, inputTemplateName].forEach(setting => {
-				setting.settingEl.classList.toggle("custom-disabled", disabled);
-			});
-
-			/*
-			// Set disabled and tooltip state
-			inputTemplateFolder.disabled = disabled;
-			inputTemplateName.disabled = disabled;
-			optionBInput.title = disabled
-				? "Disabled because Option A is off" : "";
-			optionCInput.title = disabled
-				? "Disabled because Option A is off" : "";
-			// Update descriptions for better UX
-			optionBSetting.setDesc(
-				disabled
-					? "Disabled—enable Option A to activate."
-					: "You can edit this field."
-			);
-			optionCSetting.setDesc(
-				disabled
-					? "Disabled—enable Option A to activate."
-					: "You can edit this field."
-			);*/
-		}
-
-
+		// set initial state
 		const enabled = this.plugin.settings.useTemplate === true;
 		inputArray.forEach(input => input.disabled = !enabled);
 
-		updateDependentFields(!this.plugin.settings.useTemplate);
 	}
-
-
 }
 
 
