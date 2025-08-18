@@ -315,9 +315,6 @@ export default class createNotePlugin extends Plugin {
 
 			// get the content of the template file
 			const content = await this.app.vault.read(templateFile);
-
-			// replace the tag placeholder
-			const date = new Date();
 			
 			const formattedDate = getFormattedISODate();
 
