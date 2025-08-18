@@ -315,21 +315,15 @@ export default class createNotePlugin extends Plugin {
 
 			// get the content of the template file
 			const content = await this.app.vault.read(templateFile);
-			//console.log("Template content:", JSON.stringify(content));
 
 			// replace the tag placeholder
 			const date = new Date();
-			const formattedDate = date.toLocaleDateString('de-DE', {
-				day: '2-digit',
-				month: '2-digit',
-				year: 'numeric'
-			}); // German format: TT.MM.JJJJ
+			
+			const formattedDate = getFormattedISODate();
 
 			// replace the template placeholder
 			let newContent = content.replace(/%date%/g, formattedDate);
 			newContent = newContent.replace(/%id%/g, noteId);
-
-			// console.log("File:`\n" + newContent);
 
 			return newContent;
 
@@ -374,6 +368,21 @@ function ObsidianVaultTraversal(folder: TFolder, result: TFolder[]) {
 			ObsidianVaultTraversal(child, result);
 		}
 	}
+}
+
+function getFormattedISODate(): string {
+	const date = new Date();
+	
+	const year = date.getFullYear();
+	const month = String(date.getMonth() + 1).padStart(2, '0'); // Add 1 because months are 0-indexed
+	const day = String(date.getDate()).padStart(2, '0');
+	
+	const hours = String(date.getHours()).padStart(2, '0');
+	const minutes = String(date.getMinutes()).padStart(2, '0');
+	
+	const isoDate = `${year}-${month}-${day} ${hours}:${minutes}`;
+	
+	return isoDate;
 }
 
 // helper fuction to create prefix string
