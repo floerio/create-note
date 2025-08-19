@@ -1,0 +1,80 @@
+const { Plugin } = require('obsidian');
+
+class RenameSelectedNotesPlugin extends Plugin {
+    async onload() {
+        console.log('Loading RenameSelectedNotesPlugin');
+
+        // Register a command to rename selected notes
+        this.addCommand({
+            id: 'rename-selected-notes-with-date',
+            name: 'Rename selected notes with date prefix',
+            callback: () => this.renameSelectedNotes()
+        });
+    }
+
+    // Get today's date in YYYYMMDD format
+    getFormattedDate() {
+        const date = new Date();
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}${month}${day}`;
+    }
+
+    // Main function to rename the selected notes
+    async renameSelectedNotes() {
+        // Get file explorer instance
+        const fileExplorer = this.app.workspace.getLeavesOfType("file-explorer")[0];
+        
+        if (!fileExplorer) {
+            new Notice("File explorer not found");
+            return;
+        }
+
+        // Get selected files from the file explorer
+        const selectedFiles = fileExplorer.view.getSelectedFiles();
+        
+        if (!selectedFiles || selectedFiles.length === 0) {
+            new Notice("No files selected in the file explorer");
+            return;
+        }
+
+        const datePrefix = this.getFormattedDate();
+        let renamedCount = 0;
+
+        // Process each selected file
+        for (const file of selectedFiles) {
+            // Skip non-markdown files if needed
+            if (file.extension !== "md") continue;
+            
+            const currentPath = file.path;
+            const currentFolderPath = currentPath.substring(0, currentPath.lastIndexOf('/') + 1);
+            const fileName = file.basename;
+            
+            // Skip files that already have a date prefix (optional)
+            if (fileName.match(/^\d{8}\s/)) continue;
+            
+            // Create the new file name with date prefix
+            const newFileName = `${datePrefix} ${fileName}`;
+            const newPath = `${currentFolderPath}${newFileName}.md`;
+            
+            try {
+                // Use the fileManager to properly rename files (updates links)
+                await this.app.fileManager.renameFile(file, newPath);
+                renamedCount++;
+            } catch (error) {
+                console.error(`Error renaming ${file.path}:`, error);
+                new Notice(`Failed to rename ${file.path}: ${error.message}`);
+            }
+        }
+
+        // Show notification with results
+        new Notice(`Renamed ${renamedCount} of ${selectedFiles.length} selected notes`);
+    }
+
+    onunload() {
+        console.log('Unloading RenameSelectedNotesPlugin');
+    }
+}
+
+module.exports = RenameSelectedNotesPlugin;
