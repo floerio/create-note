@@ -50,6 +50,13 @@ export default class createNotePlugin extends Plugin {
 		// This adds a settings tab so the user can configure various aspects of the plugin
 		this.addSettingTab(new CreateNoteSettingTab(this.app, this));
 
+		// Register a command to rename selected notes
+		this.addCommand({
+			id: 'rename-selected-notes-with-date',
+			name: 'Create note: Rename selected notes with create-date prefix',
+			callback: () => this.renameSelectedNotes()
+		});
+
 	}
 
 	onunload() {
@@ -315,7 +322,7 @@ export default class createNotePlugin extends Plugin {
 
 			// get the content of the template file
 			const content = await this.app.vault.read(templateFile);
-			
+
 			const formattedDate = getFormattedISODate();
 
 			// replace the template placeholder
@@ -330,6 +337,14 @@ export default class createNotePlugin extends Plugin {
 			return '';
 		}
 	}
+
+	//
+	// command function: renames the selected notes with creation-date prefix
+	//
+	async renameSelectedNotes() {
+		new Notice("PING");
+	}
+	
 }
 
 class FolderSuggest extends AbstractInputSuggest<TFolder> {
@@ -369,16 +384,16 @@ function ObsidianVaultTraversal(folder: TFolder, result: TFolder[]) {
 
 function getFormattedISODate(): string {
 	const date = new Date();
-	
+
 	const year = date.getFullYear();
 	const month = String(date.getMonth() + 1).padStart(2, '0'); // Add 1 because months are 0-indexed
 	const day = String(date.getDate()).padStart(2, '0');
-	
+
 	const hours = String(date.getHours()).padStart(2, '0');
 	const minutes = String(date.getMinutes()).padStart(2, '0');
-	
+
 	const isoDate = `${year}-${month}-${day} ${hours}:${minutes}`;
-	
+
 	return isoDate;
 }
 

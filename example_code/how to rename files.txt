@@ -1,80 +1,114 @@
-const { Plugin } = require('obsidian');
+const { Plugin, Notice, TFile } = require('obsidian');
 
-class RenameSelectedNotesPlugin extends Plugin {
+class RenameDateFromFrontmatterPlugin extends Plugin {
     async onload() {
-        console.log('Loading RenameSelectedNotesPlugin');
+        console.log('Loading RenameDateFromFrontmatterPlugin');
 
-        // Register a command to rename selected notes
+        // Register a command to rename the active note
         this.addCommand({
-            id: 'rename-selected-notes-with-date',
-            name: 'Rename selected notes with date prefix',
-            callback: () => this.renameSelectedNotes()
+            id: 'rename-note-with-created-date',
+            name: 'Rename note with created date from frontmatter',
+            callback: () => this.renameNoteWithCreatedDate()
         });
     }
 
-    // Get today's date in YYYYMMDD format
-    getFormattedDate() {
-        const date = new Date();
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
+    // Format date from frontmatter (could be in various formats)
+    formatDateFromFrontmatter(createdDate) {
+        let dateObj;
+        
+        // Try to parse the date
+        if (typeof createdDate === 'string') {
+            // Try to parse the string date
+            dateObj = new Date(createdDate);
+        } else if (createdDate instanceof Date) {
+            dateObj = createdDate;
+        } else {
+            // If we can't parse it, use current date
+            console.warn("Could not parse created date, using current date instead");
+            dateObj = new Date();
+        }
+        
+        // Format as YYYYMMDD
+        const year = dateObj.getFullYear();
+        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const day = String(dateObj.getDate()).padStart(2, '0');
+        
         return `${year}${month}${day}`;
     }
 
-    // Main function to rename the selected notes
-    async renameSelectedNotes() {
-        // Get file explorer instance
-        const fileExplorer = this.app.workspace.getLeavesOfType("file-explorer")[0];
+    // Main function to rename the active note
+    async renameNoteWithCreatedDate() {
+        // Get the active file
+        const activeFile = this.app.workspace.getActiveFile();
         
-        if (!fileExplorer) {
-            new Notice("File explorer not found");
+        if (!activeFile) {
+            new Notice("No active file");
             return;
         }
-
-        // Get selected files from the file explorer
-        const selectedFiles = fileExplorer.view.getSelectedFiles();
         
-        if (!selectedFiles || selectedFiles.length === 0) {
-            new Notice("No files selected in the file explorer");
+        // Make sure it's a markdown file
+        if (activeFile.extension !== "md") {
+            new Notice("Active file is not a markdown file");
             return;
         }
-
-        const datePrefix = this.getFormattedDate();
-        let renamedCount = 0;
-
-        // Process each selected file
-        for (const file of selectedFiles) {
-            // Skip non-markdown files if needed
-            if (file.extension !== "md") continue;
+        
+        // Skip if the file already has a date prefix
+        if (activeFile.basename.match(/^\d{8}\s/)) {
+            new Notice("File already has a date prefix");
+            return;
+        }
+        
+        try {
+            // Read the file content
+            const fileContent = await this.app.vault.read(activeFile);
             
-            const currentPath = file.path;
-            const currentFolderPath = currentPath.substring(0, currentPath.lastIndexOf('/') + 1);
-            const fileName = file.basename;
+            // Extract frontmatter
+            const frontmatterRegex = /^---\n([\s\S]*?)\n---/;
+            const match = fileContent.match(frontmatterRegex);
             
-            // Skip files that already have a date prefix (optional)
-            if (fileName.match(/^\d{8}\s/)) continue;
+            if (!match) {
+                new Notice("No frontmatter found in the file");
+                return;
+            }
+            
+            const frontmatterContent = match[1];
+            
+            // Look for created date
+            const createdRegex = /created:\s*(.*)/i;
+            const createdMatch = frontmatterContent.match(createdRegex);
+            
+            if (!createdMatch) {
+                new Notice("No 'created' field found in frontmatter");
+                return;
+            }
+            
+            // Get and format the created date
+            const createdDate = createdMatch[1].trim();
+            const datePrefix = this.formatDateFromFrontmatter(createdDate);
+            
+            // Prepare the new file name
+            const currentPath = activeFile.path;
+            const currentFolderPath = currentPath.substring(0, currentPath.lastIndexOf('/') + 1) || '';
+            const fileName = activeFile.basename;
             
             // Create the new file name with date prefix
             const newFileName = `${datePrefix} ${fileName}`;
             const newPath = `${currentFolderPath}${newFileName}.md`;
             
-            try {
-                // Use the fileManager to properly rename files (updates links)
-                await this.app.fileManager.renameFile(file, newPath);
-                renamedCount++;
-            } catch (error) {
-                console.error(`Error renaming ${file.path}:`, error);
-                new Notice(`Failed to rename ${file.path}: ${error.message}`);
-            }
+            // Rename the file
+            await this.app.fileManager.renameFile(activeFile, newPath);
+            
+            new Notice(`Renamed: ${fileName} → ${newFileName}`);
+            
+        } catch (error) {
+            console.error("Error:", error);
+            new Notice(`Error: ${error.message}`);
         }
-
-        // Show notification with results
-        new Notice(`Renamed ${renamedCount} of ${selectedFiles.length} selected notes`);
     }
 
     onunload() {
-        console.log('Unloading RenameSelectedNotesPlugin');
+        console.log('Unloading RenameDateFromFrontmatterPlugin');
     }
 }
 
-module.exports = RenameSelectedNotesPlugin;
+module.exports = RenameDateFromFrontmatterPlugin;
