@@ -78,7 +78,7 @@ export default class createNotePlugin extends Plugin {
                     menu.addItem((item: MenuItem) => {
                         item
                             .setTitle('Rename with created date')
-                            .setIcon('calendar')
+                            .setIcon('dice')
                             .onClick(async () => {
                                 await this.renameNoteWithCreatedDate(file);
                             });
