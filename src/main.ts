@@ -1,4 +1,4 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, AbstractInputSuggest, TFolder, TFile, normalizePath } from 'obsidian';
+import { App, Editor, MarkdownView, Modal, Notice, Plugin, Menu, MenuItem,PluginSettingTab, Setting, AbstractInputSuggest, TFolder, TFile, normalizePath } from 'obsidian';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, copyFile } from 'fs';
 import { join, basename, extname } from 'path';
 import { simpleParser, ParsedMail } from 'mailparser';
@@ -69,6 +69,23 @@ export default class createNotePlugin extends Plugin {
 				await this.renameNoteWithCreatedDate(activeFile);
 			}
 		});
+
+		// Register for file menu (context menu)
+        this.registerEvent(
+            this.app.workspace.on('file-menu', (menu: Menu, file: TFile) => {
+                // Only show for markdown files
+                if (file instanceof TFile && file.extension === 'md') {
+                    menu.addItem((item: MenuItem) => {
+                        item
+                            .setTitle('Rename with created date')
+                            .setIcon('calendar')
+                            .onClick(async () => {
+                                await this.renameNoteWithCreatedDate(file);
+                            });
+                    });
+                }
+            })
+        );
 
 	}
 
