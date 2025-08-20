@@ -30,6 +30,11 @@ const DEFAULT_SETTINGS: CreateNoteSettings = {
 	ignoreHiddenFiles: true
 }
 
+interface Frontmatter {
+	created?: string;
+	[key: string]: any;
+}
+
 export default class createNotePlugin extends Plugin {
 	settings: CreateNoteSettings;
 
@@ -53,8 +58,16 @@ export default class createNotePlugin extends Plugin {
 		// Register a command to rename selected notes
 		this.addCommand({
 			id: 'rename-selected-notes-with-date',
-			name: 'Create note: Rename selected notes with create-date prefix',
-			callback: () => this.renameSelectedNotes()
+			name: 'Rename selected notes with create-date prefix',
+			callback: async () => {
+				const activeFile = this.app.workspace.getActiveFile();
+				if (!activeFile) {
+					new Notice('No active note found');
+					return;
+				}
+
+				await this.renameNoteWithCreatedDate(activeFile);
+			}
 		});
 
 	}
@@ -338,13 +351,89 @@ export default class createNotePlugin extends Plugin {
 		}
 	}
 
-	//
-	// command function: renames the selected notes with creation-date prefix
-	//
-	async renameSelectedNotes() {
-		new Notice("PING");
+	async renameNoteWithCreatedDate(file: TFile) {
+		try {
+			// Read file content
+			const content = await this.app.vault.read(file);
+
+			// Extract frontmatter
+			const frontmatterMatch = content.match(/^---[\s\S]*?---/);
+			if (!frontmatterMatch) {
+				new Notice('No frontmatter found in the note');
+				return;
+			}
+
+			const frontmatterStr = frontmatterMatch[0];
+			const frontmatter: Frontmatter = this.parseFrontmatter(frontmatterStr);
+
+			if (!frontmatter.created) {
+				new Notice('No "created" date found in frontmatter');
+				return;
+			}
+
+			// Format the date (assuming YYYY-MM-DD format)
+			const datePrefix = this.formatDateForFilename(frontmatter.created);
+
+			// Generate new filename
+			const currentName = file.basename;
+			const newName = `${datePrefix} ${currentName}`;
+
+			const pathPrefix = file.parent ? `${file.parent.path}/` : '';
+
+			const renamedFile = `${pathPrefix}${newName}.${file.extension}`;
+
+			// Rename the file
+			await this.app.fileManager.renameFile(
+				file,
+				renamedFile
+			);
+
+			new Notice(`Note renamed to: ${newName}`);
+
+		} catch (error) {
+			new Notice(`Error renaming note: ${error}`);
+			console.error(error);
+		}
 	}
-	
+
+	private parseFrontmatter(frontmatterStr: string): Frontmatter {
+		const result: Frontmatter = {};
+		const lines = frontmatterStr.split('\n').slice(1, -1); // Remove --- lines
+
+		for (const line of lines) {
+			const match = line.match(/^(\w+):\s*(.*)$/);
+			if (match) {
+				const key = match[1].trim();
+				const value = match[2].trim();
+				result[key] = value;
+			}
+		}
+
+		return result;
+	}
+
+	private formatDateForFilename(dateStr: string): string {
+
+		// Remove all whitespace
+		const cleanDate = dateStr.trim();
+
+		// Handle YYYY-MM-DD format (e.g., "2023-08-20")
+		if (cleanDate.match(/^\d{4}-\d{2}-\d{2}/)) {
+			return cleanDate.replace(/-/g, '').slice(0, 8);
+		}
+		// Handle DD.MM.YYYY format (e.g., "20.08.2023")
+		else if (cleanDate.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
+			
+			const parts = cleanDate.split('.');
+			// Rearrange from DD.MM.YYYY to YYYYMMDD
+			return `${parts[2]}${parts[1]}${parts[0]}`;
+		}
+
+		return "";
+	}
+
+
+
 }
 
 class FolderSuggest extends AbstractInputSuggest<TFolder> {
@@ -575,5 +664,4 @@ class CreateNoteSettingTab extends PluginSettingTab {
 
 	}
 }
-
 
