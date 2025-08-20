@@ -1,10 +1,11 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, Menu, MenuItem,PluginSettingTab, Setting, AbstractInputSuggest, TFolder, TFile, normalizePath } from 'obsidian';
+import { App, Editor, MarkdownView, Modal, Notice, Plugin, Menu, MenuItem, PluginSettingTab, Setting, AbstractInputSuggest, TFolder, TFile, normalizePath } from 'obsidian';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, copyFile } from 'fs';
 import { join, basename, extname } from 'path';
 import { simpleParser, ParsedMail } from 'mailparser';
 import * as path from 'path';
 import { nanoid } from 'nanoid';
 import { error } from 'console';
+import { ExtNoteManager } from './ExtNoteManager';
 
 interface CreateNoteSettings {
 	inputFolderPath: string;
@@ -30,10 +31,7 @@ const DEFAULT_SETTINGS: CreateNoteSettings = {
 	ignoreHiddenFiles: true
 }
 
-interface Frontmatter {
-	created?: string;
-	[key: string]: any;
-}
+
 
 export default class createNotePlugin extends Plugin {
 	settings: CreateNoteSettings;
@@ -43,7 +41,15 @@ export default class createNotePlugin extends Plugin {
 
 		// This creates an icon in the left ribbon.
 		const ribbonIconEl = this.addRibbonIcon('dice', 'Import Files', (evt: MouseEvent) => {
-			this.processFiles();
+			// this.processFiles();
+			try {
+				const extNoteMgr = new ExtNoteManager(this.app, this.settings);
+			}
+			catch (error) {
+				new Notice('Unable to process file')
+				console.error('Could not process file', error);
+			}
+
 		});
 		// Perform additional things with the ribbon
 		ribbonIconEl.addClass('my-plugin-ribbon-class');
@@ -60,32 +66,39 @@ export default class createNotePlugin extends Plugin {
 			id: 'rename-selected-notes-with-date',
 			name: 'Rename selected notes with create-date prefix',
 			callback: async () => {
-				const activeFile = this.app.workspace.getActiveFile();
-				if (!activeFile) {
-					new Notice('No active note found');
-					return;
+				try {
+					const activeFile = this.app.workspace.getActiveFile();
+					if (!activeFile) {
+						new Notice('No active note found');
+						return;
+					}
+					const extNoteMgr = new ExtNoteManager(this.app, this.settings);
+					await extNoteMgr.renameNoteWithCreatedDate(activeFile);
 				}
-
-				await this.renameNoteWithCreatedDate(activeFile);
+				catch (error) {
+					new Notice('Error changing note name')
+					console.error('Error changing note name:', error);
+				}
 			}
 		});
 
 		// Register for file menu (context menu)
-        this.registerEvent(
-            this.app.workspace.on('file-menu', (menu: Menu, file: TFile) => {
-                // Only show for markdown files
-                if (file instanceof TFile && file.extension === 'md') {
-                    menu.addItem((item: MenuItem) => {
-                        item
-                            .setTitle('Rename with created date')
-                            .setIcon('dice')
-                            .onClick(async () => {
-                                await this.renameNoteWithCreatedDate(file);
-                            });
-                    });
-                }
-            })
-        );
+		this.registerEvent(
+			this.app.workspace.on('file-menu', (menu: Menu, file: TFile) => {
+				// Only show for markdown files
+				if (file instanceof TFile && file.extension === 'md') {
+					menu.addItem((item: MenuItem) => {
+						item
+							.setTitle('Rename with created date')
+							.setIcon('dice')
+							.onClick(async () => {
+								const extNoteMgr = new ExtNoteManager(this.app, this.settings);
+								await extNoteMgr.renameNoteWithCreatedDate(file);
+							});
+					});
+				}
+			})
+		);
 
 	}
 
@@ -368,6 +381,12 @@ export default class createNotePlugin extends Plugin {
 		}
 	}
 
+	/*
+	// moved to separarte class
+	interface Frontmatter {
+	created?: string;
+	[key: string]: any;
+}
 	async renameNoteWithCreatedDate(file: TFile) {
 		try {
 			// Read file content
@@ -448,6 +467,7 @@ export default class createNotePlugin extends Plugin {
 
 		return "";
 	}
+		*/
 
 
 
