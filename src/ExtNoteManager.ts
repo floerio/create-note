@@ -86,7 +86,11 @@ export class ExtNoteManager {
 
     async createNoteFromFile(inputFile: TFile) {
 
+        // create unique identifier for note
+        const uuid = nanoid();
+
         // create initial note content with template
+        await this.useTemplateForContent(uuid)
 
         // create the content part from the file
         await this.createNoteContent(inputFile);
@@ -109,6 +113,43 @@ export class ExtNoteManager {
 
     }
 
+    // load template into the content if requested
+    async useTemplateForContent(noteId: string) {
+        if (!this.settings.useTemplate) {
+            return;
+        } else {
+
+            try {
+
+                // get the template file
+                const templateFileName = join(this.settings.templateFolderPath + "/", this.settings.importTemplate)
+                const templateFile = this.app.vault.getFileByPath(templateFileName);
+
+                // template found?
+                if (!(templateFile instanceof TFile)) {
+                    throw new Error(`Template file not found: ${templateFileName}`);
+                }
+
+                // load the content of the template file into our main content
+                this.noteContent = await this.app.vault.read(templateFile);
+
+                const formattedDate = this.getFormattedISODate();
+
+                // replace the template placeholder in the content
+                this.noteContent = this.noteContent.replace(/%date%/g, formattedDate);
+                this.noteContent = this.noteContent.replace(/%id%/g, noteId);
+
+                return;
+
+            } catch (error) {
+                console.error("Failed to create note content: ", error);
+                new Notice("Unable to create note content");
+            }
+        }
+    }
+
+    // create the major content 
+    // currently only relevant for eml files, all other files will have no major content
     async createNoteContent(inputFile: TFile) {
         // if we do not have an eml file, we don't have any content
         if (inputFile.extension != "eml") {
@@ -136,6 +177,20 @@ export class ExtNoteManager {
 
     }
 
+    getFormattedISODate(): string {
+        const date = new Date();
+
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0'); // Add 1 because months are 0-indexed
+        const day = String(date.getDate()).padStart(2, '0');
+
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+
+        const isoDate = `${year}-${month}-${day} ${hours}:${minutes}`;
+
+        return isoDate;
+    }
 
 
     async ensureAllFoldersExist(mySettings: CreateNoteSettings): Promise<boolean> {
