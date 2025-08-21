@@ -1,10 +1,9 @@
 import { App, Notice, TFolder, TFile, normalizePath } from 'obsidian';
 import { readdirSync  } from 'fs';
-import { join, basename,  } from 'path';
+import { join  } from 'path';
 import * as path from 'path';
 import { nanoid } from 'nanoid';
 import { simpleParser, ParsedMail } from 'mailparser';
-import { error } from 'console';
 
 interface CreateNoteSettings {
     inputFolderPath: string;
@@ -117,7 +116,7 @@ export class ExtNoteManager {
             await this.createFinalNote(orgFilename);
 
         } catch (error) {
-            console.log("Error:" + error)
+            console.log("Error in main process for file: " + error)
             throw error;
         }
     }
@@ -249,6 +248,9 @@ export class ExtNoteManager {
             const path = join(this.#settings.attachementFolderPath, element);
             this.#noteContent += `\n\n![[${path}]]`;
         });
+
+        // clear for next file
+        this.#attachementList = [];
     }
 
     //create the final note

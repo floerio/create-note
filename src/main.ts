@@ -1,10 +1,4 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, Menu, MenuItem, PluginSettingTab, Setting, AbstractInputSuggest, TFolder, TFile, normalizePath } from 'obsidian';
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, copyFile } from 'fs';
-import { join, basename, extname } from 'path';
-import { simpleParser, ParsedMail } from 'mailparser';
-import * as path from 'path';
-import { nanoid } from 'nanoid';
-import { error } from 'console';
+import { App, Notice, Plugin, Menu, MenuItem, PluginSettingTab, Setting, AbstractInputSuggest, TFolder, TFile  } from 'obsidian';
 import { ExtNoteManager } from './ExtNoteManager';
 
 interface CreateNoteSettings {
@@ -145,21 +139,6 @@ function ObsidianVaultTraversal(folder: TFolder, result: TFolder[]) {
 			ObsidianVaultTraversal(child, result);
 		}
 	}
-}
-
-function getFormattedISODate(): string {
-	const date = new Date();
-
-	const year = date.getFullYear();
-	const month = String(date.getMonth() + 1).padStart(2, '0'); // Add 1 because months are 0-indexed
-	const day = String(date.getDate()).padStart(2, '0');
-
-	const hours = String(date.getHours()).padStart(2, '0');
-	const minutes = String(date.getMinutes()).padStart(2, '0');
-
-	const isoDate = `${year}-${month}-${day} ${hours}:${minutes}`;
-
-	return isoDate;
 }
 
 class CreateNoteSettingTab extends PluginSettingTab {
