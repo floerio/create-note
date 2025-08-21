@@ -1,4 +1,4 @@
-import { App, Notice, Plugin, Menu, MenuItem, PluginSettingTab, Setting, AbstractInputSuggest, TFolder, TFile  } from 'obsidian';
+import { App, Notice, Plugin, Menu, MenuItem, PluginSettingTab, Setting, AbstractInputSuggest, TFolder, TFile, addIcon } from 'obsidian';
 import { ExtNoteManager } from './ExtNoteManager';
 
 interface CreateNoteSettings {
@@ -29,8 +29,23 @@ export default class createNotePlugin extends Plugin {
 	async onload() {
 		await this.loadSettings();
 
+		addIcon(
+			"ext-note-manager-icon",
+			`<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"> 
+			<g>
+        		<circle cx="8.816" cy="7.01" r="2.009" transform="matrix(9.422,0,0,9.422,-59.1345,-43.8815)" fill="currentColor"/> 
+				</g>
+    		<g>
+        		<path d="M8.402,16.504L13.775,11.131L19.136,16.491L8.402,16.504Z" transform="matrix(4.87232,0,0,7.55187,3.17546,-70.2489)" fill="currentColor"/>
+				</g>
+    		<g>
+        		<rect x="4.115" y="15.733" width="7.288" height="6.383" transform="matrix(5.46895,0,0,5.26372,5.38211,-18.3902)" fill="currentColor"/>
+				</g>
+			</svg>`
+		)
+
 		// This creates an icon in the left ribbon.
-		const ribbonIconEl = this.addRibbonIcon('dice', 'Import Files', (evt: MouseEvent) => {
+		const ribbonIconEl = this.addRibbonIcon('ext-note-manager-icon', 'Import Files', (evt: MouseEvent) => {
 			// this.processFiles();
 			try {
 				const extNoteMgr = new ExtNoteManager(this.app, this.settings);

@@ -12,7 +12,6 @@ interface CreateNoteSettings {
     useTemplate: boolean;
     templateFolderPath: string;
     importTemplate: string;
-    deleteEmlFiles: boolean;
     attachEmlFile: boolean;
     ignoreHiddenFiles: boolean;
 }
