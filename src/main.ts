@@ -14,7 +14,6 @@ interface CreateNoteSettings {
 	useTemplate: boolean;
 	templateFolderPath: string;
 	importTemplate: string;
-	deleteEmlFiles: boolean;
 	attachEmlFile: boolean;
 	ignoreHiddenFiles: boolean;
 }
@@ -26,7 +25,6 @@ const DEFAULT_SETTINGS: CreateNoteSettings = {
 	useTemplate: true,
 	templateFolderPath: '_templates',
 	importTemplate: 'createNoteTemplate.md',
-	deleteEmlFiles: true,
 	attachEmlFile: true,
 	ignoreHiddenFiles: true
 }
