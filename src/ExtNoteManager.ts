@@ -276,8 +276,8 @@ export class ExtNoteManager {
         const month = String(currentDate.getMonth() + 1).padStart(2, '0'); // Months are zero-based
         const day = String(currentDate.getDate()).padStart(2, '0');
 
-        // Format the date as "YYYYMMDD"
-        const formattedDate = `${year}${month}${day}`;
+        // Format the date as "YYYY-MM-DD"
+        const formattedDate = `${year}-${month}-${day}`;
 
         return formattedDate;
     }
@@ -443,14 +443,15 @@ export class ExtNoteManager {
 
         // Handle YYYY-MM-DD format (e.g., "2023-08-20")
         if (cleanDate.match(/^\d{4}-\d{2}-\d{2}/)) {
-            return cleanDate.replace(/-/g, '').slice(0, 8);
+            // return cleanDate.replace(/-/g, '').slice(0, 8);
+            return cleanDate.slice(0, 10);
         }
         // Handle DD.MM.YYYY format (e.g., "20.08.2023")
         else if (cleanDate.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
 
             const parts = cleanDate.split('.');
-            // Rearrange from DD.MM.YYYY to YYYYMMDD
-            return `${parts[2]}${parts[1]}${parts[0]}`;
+            // Rearrange from DD.MM.YYYY to YYYY-MM-DD
+            return `${parts[2]}-${parts[1]}-${parts[0]}`;
         }
 
         return "";
