@@ -1,6 +1,6 @@
 import { App, Notice, TFolder, TFile, normalizePath } from 'obsidian';
-import { readdirSync  } from 'fs';
-import { join  } from 'path';
+import { readdirSync } from 'fs';
+import { join } from 'path';
 import * as path from 'path';
 import { nanoid } from 'nanoid';
 import { simpleParser, ParsedMail } from 'mailparser';
@@ -66,18 +66,24 @@ export class ExtNoteManager {
                 const vaultInputFileName = join(this.#settings.inputFolderPath + "/", file);
 
                 // read file
-                const inputFile = this.#app.vault.getAbstractFileByPath(vaultInputFileName);
+                try {
+                    const inputFile = this.#app.vault.getAbstractFileByPath(normalizePath(vaultInputFileName));
 
-                // Skip directories
-                if (inputFile instanceof TFolder) continue;
+                    // Skip directories
+                    if (inputFile instanceof TFolder) continue;
 
-                if (!(inputFile instanceof TFile)) {
-                    throw new Error(`Can't read file: ${vaultInputFileName}`);
+                    if (!(inputFile instanceof TFile)) {
+                        throw new Error(`Can't read file: <${vaultInputFileName}>`);
+                    }
+
+                    // file seems to exists as expected, so process it
+                    await this.createNoteFromFile(inputFile);
+
+                } catch (error) {
+                    const msg = `Can't process file <${vaultInputFileName}> \nError: {error})`
+                    new Notice(msg);
+                    throw (error)
                 }
-
-                // file seems to exists as expected, so process it
-                await this.createNoteFromFile(inputFile);
-
                 processedCount++;
             }
             new Notice(`Processed ${processedCount} files`);
@@ -85,7 +91,8 @@ export class ExtNoteManager {
             return;
 
         } catch (error) {
-            console.log("Error in looping files " + error)
+            console.log("Error in looping files " + error);
+
         }
     }
 
@@ -206,7 +213,7 @@ export class ExtNoteManager {
 
                         // only proceed if we have an extension, assuming that files w/o extension are no serious attachements
                         if (ext) {
-                            const newFilename = `${this.#noteUUID}_${filename}`
+                            const newFilename = `${this.#noteUUID}_${this.sanitizeFileName(filename)}`
                             const attachPath = normalizePath(`${this.#settings.attachementFolderPath}/${newFilename}`);
                             // Convert Buffer to ArrayBuffer using Uint8Array
                             const arrayBuffer = new Uint8Array(attach.content).buffer;
@@ -226,7 +233,7 @@ export class ExtNoteManager {
 
             // so now we have either a non-eml file or an eml file that should be moved as well
             const sourceFile = join(this.#settings.inputFolderPath + "/", inputFile.name);
-            const newFilename = `${this.#noteUUID}_${inputFile.name}`
+            const newFilename = `${this.#noteUUID}_${this.sanitizeFileName(inputFile.name)}`
             const targetFile = normalizePath(`${this.#settings.attachementFolderPath}/${newFilename}`);
 
             await this.moveFile(sourceFile, targetFile, false);
@@ -244,8 +251,9 @@ export class ExtNoteManager {
     // update content with attachment list
     private addAttachmentsToContent() {
         this.#attachementList.forEach((element) => {
-            const path = join(this.#settings.attachementFolderPath, element);
-            this.#noteContent += `\n\n![[${path}]]`;
+            const attachementFolder = this.#settings.attachementFolderPath.slice(this.#settings.noteFolderPath.length + 1)
+            const path = join(attachementFolder, element);
+            this.#noteContent += `\n\n![](${path})`;
         });
 
         // clear for next file
@@ -256,7 +264,7 @@ export class ExtNoteManager {
     private async createFinalNote(fileName: string) {
 
         let noteTitle = this.createDatePrefix() + " " + fileName.replace(/[^\w\s-]/g, '');
-        noteTitle =  join(this.#settings.noteFolderPath, noteTitle + ".md");
+        noteTitle = join(this.#settings.noteFolderPath, noteTitle + ".md");
 
         // create it
         await this.#app.vault.create(noteTitle, this.#noteContent);
@@ -301,6 +309,11 @@ export class ExtNoteManager {
     }
 
     private sanitizeFileName(name: string): string {
+
+        // first split name 
+        const extension = path.extname(name)
+        const baseName = path.basename(name, path.extname(name));
+
         // Replace German Umlauts and sharp S with ASCII equivalents
         const umlautMap: Record<string, string> = {
             ä: "ae",
@@ -313,7 +326,7 @@ export class ExtNoteManager {
         };
 
         // Replace Umlauts first
-        let sanitized = name.replace(/[äöüÄÖÜß]/g, (match) => umlautMap[match] || match);
+        let sanitized = baseName.replace(/[äöüÄÖÜß]/g, (match) => umlautMap[match] || match);
 
         // Remove ALL spaces
         sanitized = sanitized.replace(/ /g, "");
@@ -321,7 +334,12 @@ export class ExtNoteManager {
         // Replace other invalid characters with underscores
         sanitized = sanitized
             .replace(/[/\\:*?"<>|]/g, "_")  // Replace invalid characters
-            .replace(/^\./, "_");            // Avoid hidden files (e.g., ".file.md" -> "_file.md")
+            .replace(/^\./, "_")            // Avoid hidden files (e.g., ".file.md" -> "_file.md")
+            .replace(/ /, "");               // remove space
+
+        sanitized = sanitized.slice(0, 25)  // finally reduce name to max 25 char
+
+        sanitized = sanitized + extension // and add the extension again
 
         return sanitized;
     }
@@ -340,7 +358,6 @@ export class ExtNoteManager {
 
         return isoDate;
     }
-
 
     private async ensureAllFoldersExist(mySettings: CreateNoteSettings): Promise<boolean> {
 
