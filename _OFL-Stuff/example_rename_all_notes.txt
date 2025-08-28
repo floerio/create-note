@@ -1,0 +1,112 @@
+import { App, Plugin, TFile, Notice } from 'obsidian';
+
+/**
+ * Adds date prefixes to note filenames based on their frontmatter 'created' date
+ */
+export async function processFrontmatterDates(app: App): Promise<void> {
+    // Get all markdown files in the vault
+    const allFiles = app.vault.getMarkdownFiles();
+    let processedCount = 0;
+    let skippedCount = 0;
+    
+    // Process files one by one
+    for (const file of allFiles) {
+        // Skip files in excluded folders (containing "/_files/" anywhere in path)
+        if (file.path.includes('/_files/')) {
+            skippedCount++;
+            continue;
+        }
+        
+        // Skip files that already have a date prefix (YYYY-MM-DD or YYYYMMDD)
+        if (file.basename.match(/^(\d{4}-\d{2}-\d{2}|\d{8})\s/)) {
+            skippedCount++;
+            continue;
+        }
+        
+        try {
+            // Read file content
+            const content = await app.vault.read(file);
+            
+            // Extract frontmatter
+            const frontmatterMatch = content.match(/^---\s*([\s\S]*?)\s*---/);
+            if (!frontmatterMatch) {
+                console.log(`No frontmatter found in ${file.path}`);
+                skippedCount++;
+                continue;
+            }
+            
+            const frontmatter = frontmatterMatch[1];
+            
+            // Look for created date in frontmatter
+            const createdMatch = frontmatter.match(/created\s*:\s*['"]?(.*?)['"]?(\s|$)/);
+            if (!createdMatch) {
+                console.log(`No 'created' field in frontmatter of ${file.path}`);
+                skippedCount++;
+                continue;
+            }
+            
+            const createdDateString = createdMatch[1].trim();
+            
+            // Parse the date (handling both YYYY-MM-DD and DD.MM.YYYY formats)
+            let parsedDate: Date | null = null;
+            
+            // Check for YYYY-MM-DD format
+            if (createdDateString.match(/^\d{4}-\d{2}-\d{2}/)) {
+                parsedDate = new Date(createdDateString);
+            } 
+            // Check for DD.MM.YYYY format
+            else if (createdDateString.match(/^\d{2}\.\d{2}\.\d{4}/)) {
+                const [day, month, year] = createdDateString.split('.').map(Number);
+                parsedDate = new Date(year, month - 1, day);
+            }
+            
+            // Verify we have a valid date
+            if (!parsedDate || isNaN(parsedDate.getTime())) {
+                console.log(`Invalid date format in ${file.path}: ${createdDateString}`);
+                skippedCount++;
+                continue;
+            }
+            
+            // Format date as YYYY-MM-DD
+            const formattedDate = parsedDate.toISOString().slice(0, 10);
+            
+            // Create new filename with date prefix
+            const folderPath = file.path.substring(0, file.path.lastIndexOf('/') + 1) || '';
+            const newFilename = `${formattedDate} ${file.basename}`;
+            const newPath = `${folderPath}${newFilename}.md`;
+            
+            // Skip if the new path would be the same as the old one
+            if (newPath === file.path) {
+                skippedCount++;
+                continue;
+            }
+            
+            // Rename the file
+            await app.fileManager.renameFile(file, newPath);
+            processedCount++;
+            
+            // Optional: Add a small delay to prevent overwhelming the file system
+            await new Promise(resolve => setTimeout(resolve, 50));
+            
+        } catch (error) {
+            console.error(`Error processing ${file.path}:`, error);
+            skippedCount++;
+        }
+    }
+    
+    // Show completion notice
+    new Notice(`Renamed ${processedCount} files with date prefixes. Skipped ${skippedCount} files.`);
+}
+
+/**
+ * Example plugin class that uses the function
+ */
+export default class DatePrefixPlugin extends Plugin {
+    async onload() {
+        this.addCommand({
+            id: 'add-created-date-prefixes',
+            name: 'Add created date prefixes to notes',
+            callback: () => processFrontmatterDates(this.app)
+        });
+    }
+}
