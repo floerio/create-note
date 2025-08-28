@@ -79,7 +79,7 @@ export default class createNotePlugin extends Plugin {
 						return;
 					}
 					const extNoteMgr = new ExtNoteManager(this.app, this.settings);
-					await extNoteMgr.renameNoteWithCreatedDate(activeFile);
+					await extNoteMgr.renameNoteWithCreatedDate(activeFile, false);
 				}
 				catch (error) {
 					new Notice('Error changing note name')
@@ -99,7 +99,7 @@ export default class createNotePlugin extends Plugin {
 							.setIcon('dice')
 							.onClick(async () => {
 								const extNoteMgr = new ExtNoteManager(this.app, this.settings);
-								await extNoteMgr.renameNoteWithCreatedDate(file);
+								await extNoteMgr.renameNoteWithCreatedDate(file, true);
 							});
 					});
 				}

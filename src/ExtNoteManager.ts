@@ -389,7 +389,7 @@ export class ExtNoteManager {
         return true;
     }
 
-        private formatDateForFilename(dateStr: string): string {
+    private formatDateForFilename(dateStr: string): string {
 
         // Remove all whitespace
         const cleanDate = dateStr.trim();
@@ -413,7 +413,7 @@ export class ExtNoteManager {
     //
     // -----------------------------------
     //
-    public async renameNoteWithCreatedDate(file: TFile) {
+    public async renameNoteWithCreatedDate(file: TFile, silent: boolean) {
         try {
             // Read file content
             const content = await this.#app.vault.read(file);
@@ -421,7 +421,9 @@ export class ExtNoteManager {
             // Extract frontmatter
             const frontmatterMatch = content.match(/^---[\s\S]*?---/);
             if (!frontmatterMatch) {
-                new Notice('No frontmatter found in the note');
+                if (!silent) {
+                    new Notice('No frontmatter found in the note');
+                }
                 return;
             }
 
@@ -429,8 +431,11 @@ export class ExtNoteManager {
             const frontmatter: Frontmatter = this.parseFrontmatter(frontmatterStr);
 
             if (!frontmatter.created) {
-                new Notice('No "created" date found in frontmatter');
+                if (!silent) {
+                    new Notice('No "created" date found in frontmatter');
+                }
                 return;
+
             }
 
             // Get date prefix based on 'created' entry in frontmatter
@@ -445,12 +450,11 @@ export class ExtNoteManager {
             const renamedFile = `${pathPrefix}${newName}.${file.extension}`;
 
             // Rename the file
-            await this.#app.fileManager.renameFile(
-                file,
-                renamedFile
-            );
+            await this.#app.fileManager.renameFile(file, renamedFile);
 
-            new Notice(`Note renamed to: ${newName}`);
+            if (!silent) {
+                new Notice(`Note renamed to: ${newName}`);
+            }
 
         } catch (error) {
             new Notice(`Error renaming note: ${error}`);
@@ -479,15 +483,36 @@ export class ExtNoteManager {
     //
     public async renameAllNotes() {
         const maxFiles = 10;
-        const excludeDir = '/_files';
+        const excludeDir = '_files';
         const createdTag = '%created%';
 
         // get all relevant files 
+        // Get all markdown files in the vault
+        const allFiles = this.#app.vault.getMarkdownFiles();
+        let processedCount = 0;
+        let skippedCount = 0;
 
-        // process all selected files
+        // Process files one by one
+        for (const file of allFiles) {
+            // Skip files in excluded folders (containing "/_files/" anywhere in path)
+            if (file.path.includes('/_files/')) {
+                skippedCount++;
+                continue;
+            }
 
-        
+            // Skip files that already have a date prefix (YYYY-MM-DD or YYYYMMDD)
+            if (file.basename.match(/^(\d{4}-\d{2}-\d{2}|\d{8})\s/)) {
+                skippedCount++;
+                continue;
+            }
 
+            // process all selected files
+            await this.renameNoteWithCreatedDate(file, true);
+            processedCount++;
 
+            // if we have a counter which is reached, stop the loop
+            if ((maxFiles > 0) && (processedCount == maxFiles)) break;
+
+        }
     }
 }
