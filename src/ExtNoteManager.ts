@@ -270,6 +270,8 @@ export class ExtNoteManager {
         await this.#app.vault.create(noteTitle, this.#noteContent);
     }
 
+
+
     //
     // helper functions
     //
@@ -387,7 +389,26 @@ export class ExtNoteManager {
         return true;
     }
 
+        private formatDateForFilename(dateStr: string): string {
 
+        // Remove all whitespace
+        const cleanDate = dateStr.trim();
+
+        // Handle YYYY-MM-DD format (e.g., "2023-08-20")
+        if (cleanDate.match(/^\d{4}-\d{2}-\d{2}/)) {
+            // return cleanDate.replace(/-/g, '').slice(0, 8);
+            return cleanDate.slice(0, 10);
+        }
+        // Handle DD.MM.YYYY format (e.g., "20.08.2023")
+        else if (cleanDate.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
+
+            const parts = cleanDate.split('.');
+            // Rearrange from DD.MM.YYYY to YYYY-MM-DD
+            return `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
+
+        return "";
+    }
 
     //
     // -----------------------------------
@@ -453,26 +474,20 @@ export class ExtNoteManager {
         return result;
     }
 
-    private formatDateForFilename(dateStr: string): string {
+    //
+    // --------------------------
+    //
+    public async renameAllNotes() {
+        const maxFiles = 10;
+        const excludeDir = '/_files';
+        const createdTag = '%created%';
 
-        // Remove all whitespace
-        const cleanDate = dateStr.trim();
+        // get all relevant files 
 
-        // Handle YYYY-MM-DD format (e.g., "2023-08-20")
-        if (cleanDate.match(/^\d{4}-\d{2}-\d{2}/)) {
-            // return cleanDate.replace(/-/g, '').slice(0, 8);
-            return cleanDate.slice(0, 10);
-        }
-        // Handle DD.MM.YYYY format (e.g., "20.08.2023")
-        else if (cleanDate.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
+        // process all selected files
 
-            const parts = cleanDate.split('.');
-            // Rearrange from DD.MM.YYYY to YYYY-MM-DD
-            return `${parts[2]}-${parts[1]}-${parts[0]}`;
-        }
+        
 
-        return "";
+
     }
-
-
 }
