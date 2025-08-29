@@ -14,6 +14,10 @@ interface CreateNoteSettings {
     importTemplate: string;
     attachEmlFile: boolean;
     ignoreHiddenFiles: boolean;
+    renameFolderPath: string;
+    renameIncludeSubfolders: boolean;
+    renameMaxCount: string;
+    renameIgnoreFolderList: string[];
 }
 
 interface Frontmatter {
@@ -424,6 +428,7 @@ export class ExtNoteManager {
                 if (!silent) {
                     new Notice('No frontmatter found in the note');
                 }
+                console.log("No frontmatter found in the note " + file.name)
                 return;
             }
 
@@ -432,8 +437,9 @@ export class ExtNoteManager {
 
             if (!frontmatter.created) {
                 if (!silent) {
-                    new Notice('No "created" date found in frontmatter');
+                    new Notice('No <created> date found in frontmatter');
                 }
+                console.log('No "created" date found in frontmatter' + file.name)
                 return;
 
             }
@@ -451,6 +457,7 @@ export class ExtNoteManager {
 
             // Rename the file
             await this.#app.fileManager.renameFile(file, renamedFile);
+            console.log(`From ${file.name} to ${renamedFile}`)
 
             if (!silent) {
                 new Notice(`Note renamed to: ${newName}`);
@@ -478,25 +485,71 @@ export class ExtNoteManager {
         return result;
     }
 
+    private createFileListForRenaming(): TFile[] {
+        const listOfFiles: TFile[] = [];
+
+        // console.log("Setting 3: " + JSON.stringify(this.#settings))
+
+        // Process entire vault
+        if (this.#settings.renameFolderPath === '') {
+            listOfFiles.push(...this.#app.vault.getMarkdownFiles());
+        }
+        // Process specific folder
+        else {
+            console.log("Folder to process: " + this.#settings.renameFolderPath);
+            const folder = this.#app.vault.getAbstractFileByPath(this.#settings.renameFolderPath);
+
+            if (!folder || !(folder instanceof TFolder)) {
+                new Notice(`Folder not found: ${this.#settings.renameFolderPath}`);
+                throw new Error(`Unable to read folder ${this.#settings.renameFolderPath}`);
+            }
+
+            // Function to collect files from a folder
+            const collectFiles = (folder: TFolder) => {
+                folder.children.forEach(child => {
+                    // Process files
+                    if (child instanceof TFile && child.extension === 'md') {
+                        listOfFiles.push(child);
+                    }
+                    // Process subfolders if requested
+                    else if (this.#settings.renameIncludeSubfolders && child instanceof TFolder) {
+                        collectFiles(child);
+                    }
+                });
+            };
+
+            collectFiles(folder);
+        }
+
+        return listOfFiles;
+    }
+
     //
     // --------------------------
     //
     public async renameAllNotes() {
-        const maxFiles = 10;
-        const excludeDir = '_files';
+
         const createdTag = '%created%';
 
-        // get all relevant files 
-        // Get all markdown files in the vault
-        const allFiles = this.#app.vault.getMarkdownFiles();
+        // console.log("Setting 2: " + JSON.stringify(this.#settings))
+
+        // get all relevant markdown files 
+        const allFiles = this.createFileListForRenaming();
+
         let processedCount = 0;
         let skippedCount = 0;
 
+        // Show progress
+        const totalFiles = allFiles.length;
+        new Notice(`Processing ${totalFiles} files...`);
+
         // Process files one by one
         for (const file of allFiles) {
-            // Skip files in excluded folders (containing "/_files/" anywhere in path)
-            if (file.path.includes('/_files/')) {
-                skippedCount++;
+
+            // Check if the file path contains any of the ignored folder names
+            const shouldIgnore = this.#settings.renameIgnoreFolderList.some(folderName => file.path.includes(folderName));
+            if (shouldIgnore) {
+                console.log(`Ignoring file: ${file.path}`);
                 continue;
             }
 
@@ -511,7 +564,7 @@ export class ExtNoteManager {
             processedCount++;
 
             // if we have a counter which is reached, stop the loop
-            if ((maxFiles > 0) && (processedCount == maxFiles)) break;
+            if ((Number(this.#settings.renameMaxCount) > 0) && (processedCount == Number(this.#settings.renameMaxCount))) break;
 
         }
     }

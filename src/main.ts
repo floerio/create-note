@@ -13,6 +13,7 @@ interface CreateNoteSettings {
 	renameFolderPath: string;
 	renameIncludeSubfolders: boolean;
 	renameMaxCount: string;
+	renameIgnoreFolderList: string[];
 }
 
 const DEFAULT_SETTINGS: CreateNoteSettings = {
@@ -26,7 +27,8 @@ const DEFAULT_SETTINGS: CreateNoteSettings = {
 	ignoreHiddenFiles: true,
 	renameFolderPath: '',
 	renameIncludeSubfolders: false,
-	renameMaxCount: '0'
+	renameMaxCount: '0',
+	renameIgnoreFolderList: []
 }
 
 export default class createNotePlugin extends Plugin {
@@ -90,6 +92,23 @@ export default class createNotePlugin extends Plugin {
 				catch (error) {
 					new Notice('Error changing note name')
 					console.error('Error changing note name:', error);
+				}
+			}
+		});
+
+		// Register a command to notes
+		this.addCommand({
+			id: 'rename-all-notes-with-date',
+			name: 'Rename all notes with create-date prefix',
+			callback: async () => {
+				try {
+					const extNoteMgr = new ExtNoteManager(this.app, this.settings);
+					// console.log("Setting 1: " + JSON.stringify(this.settings))
+					await extNoteMgr.renameAllNotes();
+				}
+				catch (error) {
+					new Notice('Error changing name of all notes')
+					console.error('Error changing name of all notes:', error);
 				}
 			}
 		});
@@ -344,23 +363,36 @@ class CreateNoteSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(containerEl)
+			.setName('Renaming: Ignore Folders')
+			.setDesc('Enter each folder name to ignore during renaming on a new line.')
+			.addTextArea(textArea => {
+				textArea
+					.setPlaceholder('e.g.,\n_files\ntemp\nbackup')
+					.setValue(this.plugin.settings.renameIgnoreFolderList.join('\n'))
+					.onChange(async (value) => {
+						this.plugin.settings.renameIgnoreFolderList = value.split('\n').map(folder => folder.trim()).filter(folder => folder !== '');
+						await this.plugin.saveSettings();
+					});
+			});
+
+
+		new Setting(containerEl)
 			.setName('Renaming: Scope')
 			.setDesc('Choose to process the entire vault or a specific folder')
 			.addDropdown(dropdown => {
 				const initialValue = this.plugin.settings.renameFolderPath ? 'folder' : 'vault';
-				dropdown
-					.addOption('vault', 'Entire Vault')
-					.addOption('folder', 'Specific Folder')
-					.setValue(initialValue)
-					.onChange(value => {
-						if (value === 'vault') {
-							this.plugin.settings.renameFolderPath = '';
-							folderSelectionContainer.style.display = 'none';
-						} else {
-							folderSelectionContainer.style.display = 'block';
-						}
-						this.plugin.saveSettings();
-					});
+				dropdown.addOption('vault', 'Entire Vault')
+				dropdown.addOption('folder', 'Specific Folder')
+				dropdown.setValue(initialValue)
+				dropdown.onChange(async value => {
+					if (value === 'vault') {
+						this.plugin.settings.renameFolderPath = '';
+						folderSelectionContainer.style.display = 'none';
+					} else {
+						folderSelectionContainer.style.display = 'block';
+					}
+					await this.plugin.saveSettings();
+				});
 			});
 
 		// Container for folder selection (initially hidden)
@@ -392,9 +424,9 @@ class CreateNoteSettingTab extends PluginSettingTab {
 			.addToggle(toggle => {
 				toggle
 					.setValue(this.plugin.settings.renameIncludeSubfolders)
-					.onChange(value => {
+					.onChange(async value => {
 						this.plugin.settings.renameIncludeSubfolders = value;
-						this.plugin.saveSettings();
+						await this.plugin.saveSettings();
 					});
 			});
 
