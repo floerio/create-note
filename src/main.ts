@@ -10,6 +10,9 @@ interface CreateNoteSettings {
 	importTemplate: string;
 	attachEmlFile: boolean;
 	ignoreHiddenFiles: boolean;
+	renameFolderPath: string;
+	renameIncludeSubfolders: boolean;
+	renameMaxCount: string;
 }
 
 const DEFAULT_SETTINGS: CreateNoteSettings = {
@@ -20,7 +23,10 @@ const DEFAULT_SETTINGS: CreateNoteSettings = {
 	templateFolderPath: '_templates',
 	importTemplate: 'createNoteTemplate.md',
 	attachEmlFile: true,
-	ignoreHiddenFiles: true
+	ignoreHiddenFiles: true,
+	renameFolderPath: '',
+	renameIncludeSubfolders: false,
+	renameMaxCount: '0'
 }
 
 export default class createNotePlugin extends Plugin {
@@ -159,9 +165,25 @@ function ObsidianVaultTraversal(folder: TFolder, result: TFolder[]) {
 class CreateNoteSettingTab extends PluginSettingTab {
 	plugin: createNotePlugin;
 
+	folders: { path: string, folder: TFolder }[] = [];
+
+
 	constructor(app: App, plugin: createNotePlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
+	}
+
+	collectFolders(folder: TFolder) {
+		// Don't include root folder in the list for cleaner UI
+		if (folder.path !== '/') {
+			this.folders.push({ path: folder.path, folder });
+		}
+
+		folder.children.forEach(child => {
+			if (child instanceof TFolder) {
+				this.collectFolders(child);
+			}
+		});
 	}
 
 	display(): void {
@@ -185,6 +207,7 @@ class CreateNoteSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 				});
 			});
+
 		new Setting(containerEl)
 			.setName("Note Folder")
 			.setDesc("Folder where new notes are placed")
@@ -199,6 +222,7 @@ class CreateNoteSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 				});
 			});
+
 		new Setting(containerEl)
 			.setName("Attachement folder")
 			.setDesc("Folder where attachements are stored")
@@ -213,6 +237,7 @@ class CreateNoteSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 				});
 			});
+
 		new Setting(containerEl)
 			.setName("Ignore hidden files?")
 			.setDesc("Enable if you want to ignore .name files in the import folder")
@@ -297,8 +322,81 @@ class CreateNoteSettingTab extends PluginSettingTab {
 				}
 
 				inputArray.push(text.inputEl);
+			})
+
+		//
+		// settings for rename tool
+		//
+
+		new Setting(containerEl)
+			.setName('Renaming: Maximal Count')
+			.setDesc('Limit the number of files to be renamed')
+			.addText(text => {
+				text.inputEl.placeholder = "0 for entire vault";
+				text.inputEl.type = "number"; // Ensure the input type is number
+				text.inputEl.min = "0"; // Set the minimum value to 0
+				text.setValue(this.plugin.settings.renameMaxCount);
+				// Save selected folder to settings
+				text.onChange(async (value) => {
+					this.plugin.settings.renameMaxCount = value;
+					await this.plugin.saveSettings();
+				});
 			});
 
+		new Setting(containerEl)
+			.setName('Renaming: Scope')
+			.setDesc('Choose to process the entire vault or a specific folder')
+			.addDropdown(dropdown => {
+				const initialValue = this.plugin.settings.renameFolderPath ? 'folder' : 'vault';
+				dropdown
+					.addOption('vault', 'Entire Vault')
+					.addOption('folder', 'Specific Folder')
+					.setValue(initialValue)
+					.onChange(value => {
+						if (value === 'vault') {
+							this.plugin.settings.renameFolderPath = '';
+							folderSelectionContainer.style.display = 'none';
+						} else {
+							folderSelectionContainer.style.display = 'block';
+						}
+						this.plugin.saveSettings();
+					});
+			});
+
+		// Container for folder selection (initially hidden)
+		const folderSelectionContainer = containerEl.createDiv();
+		if (this.plugin.settings.renameFolderPath === '') {
+			folderSelectionContainer.style.display = 'none';
+		} else {
+			folderSelectionContainer.style.display = 'block'
+		}
+
+		new Setting(folderSelectionContainer)
+			.setName("Renaming: Select Folder")
+			.setDesc("Choose which folder to process")
+			.addText(text => {
+				text.inputEl.placeholder = "Start typing to search folders";
+				text.setValue(this.plugin.settings.renameFolderPath ?? "");
+				new FolderSuggest(this.app, text.inputEl);
+
+				// Save selected folder to settings
+				text.onChange(async (value) => {
+					this.plugin.settings.renameFolderPath = value;
+					await this.plugin.saveSettings();
+				})
+			});
+
+		new Setting(folderSelectionContainer)
+			.setName('Renaming: Include Subfolders')
+			.setDesc('Process notes in subfolders as well')
+			.addToggle(toggle => {
+				toggle
+					.setValue(this.plugin.settings.renameIncludeSubfolders)
+					.onChange(value => {
+						this.plugin.settings.renameIncludeSubfolders = value;
+						this.plugin.saveSettings();
+					});
+			});
 
 		// set initial state
 		const enabled = this.plugin.settings.useTemplate === true;
