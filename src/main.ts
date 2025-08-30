@@ -27,8 +27,8 @@ const DEFAULT_SETTINGS: CreateNoteSettings = {
 	ignoreHiddenFiles: true,
 	renameFolderPath: '',
 	renameIncludeSubfolders: false,
-	renameMaxCount: '0',
-	renameIgnoreFolderList: []
+	renameMaxCount: '20',
+	renameIgnoreFolderList: ['_files']
 }
 
 export default class createNotePlugin extends Plugin {
@@ -78,7 +78,7 @@ export default class createNotePlugin extends Plugin {
 		// Register a command to rename selected notes
 		this.addCommand({
 			id: 'rename-selected-notes-with-date',
-			name: 'Rename selected notes with create-date prefix',
+			name: 'Rename selected note with create-date prefix',
 			callback: async () => {
 				try {
 					const activeFile = this.app.workspace.getActiveFile();
@@ -103,7 +103,6 @@ export default class createNotePlugin extends Plugin {
 			callback: async () => {
 				try {
 					const extNoteMgr = new ExtNoteManager(this.app, this.settings);
-					// console.log("Setting 1: " + JSON.stringify(this.settings))
 					await extNoteMgr.renameAllNotes();
 				}
 				catch (error) {

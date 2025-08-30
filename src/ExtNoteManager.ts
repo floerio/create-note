@@ -450,14 +450,13 @@ export class ExtNoteManager {
             // Generate new filename
             const currentName = file.basename;
             const newName = `${datePrefix} ${currentName}`;
-
             const pathPrefix = file.parent ? `${file.parent.path}/` : '';
-
             const renamedFile = `${pathPrefix}${newName}.${file.extension}`;
 
             // Rename the file
             await this.#app.fileManager.renameFile(file, renamedFile);
-            console.log(`From ${file.name} to ${renamedFile}`)
+            await new Promise(resolve => setTimeout(resolve, 50));
+            // console.log(`From ${currentName} to ${newName}`)
 
             if (!silent) {
                 new Notice(`Note renamed to: ${newName}`);
@@ -496,7 +495,7 @@ export class ExtNoteManager {
         }
         // Process specific folder
         else {
-            console.log("Folder to process: " + this.#settings.renameFolderPath);
+            // console.log("Folder to process: " + this.#settings.renameFolderPath);
             const folder = this.#app.vault.getAbstractFileByPath(this.#settings.renameFolderPath);
 
             if (!folder || !(folder instanceof TFolder)) {
@@ -567,5 +566,7 @@ export class ExtNoteManager {
             if ((Number(this.#settings.renameMaxCount) > 0) && (processedCount == Number(this.#settings.renameMaxCount))) break;
 
         }
+
+        new Notice(`Processing of ${processedCount} files done`);
     }
 }
