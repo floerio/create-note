@@ -277,7 +277,7 @@ export class ExtNoteManager {
 
 
     //
-    // helper functions
+    // helper functions test
     //
 
     // helper fuction to create prefix string
