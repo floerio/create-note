@@ -1,7 +1,7 @@
 {
 	"id": "create-note",
 	"name": "Create Note",
-	"version": "1.1.0",
+	"version": "1.2.0",
 	"minAppVersion": "0.15.0",
 	"description": "Creates new notes based on files in a certain folder",
 	"author": "Oliver Flöricke",

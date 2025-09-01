@@ -10,10 +10,6 @@ interface CreateNoteSettings {
 	importTemplate: string;
 	attachEmlFile: boolean;
 	ignoreHiddenFiles: boolean;
-	renameFolderPath: string;
-	renameIncludeSubfolders: boolean;
-	renameMaxCount: string;
-	renameIgnoreFolderList: string[];
 }
 
 const DEFAULT_SETTINGS: CreateNoteSettings = {
@@ -24,11 +20,7 @@ const DEFAULT_SETTINGS: CreateNoteSettings = {
 	templateFolderPath: '_templates',
 	importTemplate: 'createNoteTemplate.md',
 	attachEmlFile: true,
-	ignoreHiddenFiles: true,
-	renameFolderPath: '',
-	renameIncludeSubfolders: false,
-	renameMaxCount: '20',
-	renameIgnoreFolderList: ['_files']
+	ignoreHiddenFiles: true
 }
 
 export default class createNotePlugin extends Plugin {
@@ -75,60 +67,6 @@ export default class createNotePlugin extends Plugin {
 		// This adds a settings tab so the user can configure various aspects of the plugin
 		this.addSettingTab(new CreateNoteSettingTab(this.app, this));
 
-		// Register a command to rename selected notes
-		this.addCommand({
-			id: 'rename-selected-notes-with-date',
-			name: 'Rename selected note with create-date prefix',
-			callback: async () => {
-				try {
-					const activeFile = this.app.workspace.getActiveFile();
-					if (!activeFile) {
-						new Notice('No active note found');
-						return;
-					}
-					const extNoteMgr = new ExtNoteManager(this.app, this.settings);
-					await extNoteMgr.renameNoteWithCreatedDate(activeFile, false);
-				}
-				catch (error) {
-					new Notice('Error changing note name')
-					console.error('Error changing note name:', error);
-				}
-			}
-		});
-
-		// Register a command to notes
-		this.addCommand({
-			id: 'rename-all-notes-with-date',
-			name: 'Rename all notes with create-date prefix',
-			callback: async () => {
-				try {
-					const extNoteMgr = new ExtNoteManager(this.app, this.settings);
-					await extNoteMgr.renameAllNotes();
-				}
-				catch (error) {
-					new Notice('Error changing name of all notes')
-					console.error('Error changing name of all notes:', error);
-				}
-			}
-		});
-
-		// Register for file menu (context menu)
-		this.registerEvent(
-			this.app.workspace.on('file-menu', (menu: Menu, file: TFile) => {
-				// Only show for markdown files
-				if (file instanceof TFile && file.extension === 'md') {
-					menu.addItem((item: MenuItem) => {
-						item
-							.setTitle('Rename with created date')
-							.setIcon('dice')
-							.onClick(async () => {
-								const extNoteMgr = new ExtNoteManager(this.app, this.settings);
-								await extNoteMgr.renameNoteWithCreatedDate(file, true);
-							});
-					});
-				}
-			})
-		);
 
 	}
 
@@ -341,93 +279,6 @@ class CreateNoteSettingTab extends PluginSettingTab {
 
 				inputArray.push(text.inputEl);
 			})
-
-		//
-		// settings for rename tool
-		//
-
-		new Setting(containerEl)
-			.setName('Renaming: Maximal Count')
-			.setDesc('Limit the number of files to be renamed')
-			.addText(text => {
-				text.inputEl.placeholder = "0 for entire vault";
-				text.inputEl.type = "number"; // Ensure the input type is number
-				text.inputEl.min = "0"; // Set the minimum value to 0
-				text.setValue(this.plugin.settings.renameMaxCount);
-				// Save selected folder to settings
-				text.onChange(async (value) => {
-					this.plugin.settings.renameMaxCount = value;
-					await this.plugin.saveSettings();
-				});
-			});
-
-		new Setting(containerEl)
-			.setName('Renaming: Ignore Folders')
-			.setDesc('Enter each folder name to ignore during renaming on a new line.')
-			.addTextArea(textArea => {
-				textArea
-					.setPlaceholder('e.g.,\n_files\ntemp\nbackup')
-					.setValue(this.plugin.settings.renameIgnoreFolderList.join('\n'))
-					.onChange(async (value) => {
-						this.plugin.settings.renameIgnoreFolderList = value.split('\n').map(folder => folder.trim()).filter(folder => folder !== '');
-						await this.plugin.saveSettings();
-					});
-			});
-
-
-		new Setting(containerEl)
-			.setName('Renaming: Scope')
-			.setDesc('Choose to process the entire vault or a specific folder')
-			.addDropdown(dropdown => {
-				const initialValue = this.plugin.settings.renameFolderPath ? 'folder' : 'vault';
-				dropdown.addOption('vault', 'Entire Vault')
-				dropdown.addOption('folder', 'Specific Folder')
-				dropdown.setValue(initialValue)
-				dropdown.onChange(async value => {
-					if (value === 'vault') {
-						this.plugin.settings.renameFolderPath = '';
-						folderSelectionContainer.style.display = 'none';
-					} else {
-						folderSelectionContainer.style.display = 'block';
-					}
-					await this.plugin.saveSettings();
-				});
-			});
-
-		// Container for folder selection (initially hidden)
-		const folderSelectionContainer = containerEl.createDiv();
-		if (this.plugin.settings.renameFolderPath === '') {
-			folderSelectionContainer.style.display = 'none';
-		} else {
-			folderSelectionContainer.style.display = 'block'
-		}
-
-		new Setting(folderSelectionContainer)
-			.setName("Renaming: Select Folder")
-			.setDesc("Choose which folder to process")
-			.addText(text => {
-				text.inputEl.placeholder = "Start typing to search folders";
-				text.setValue(this.plugin.settings.renameFolderPath ?? "");
-				new FolderSuggest(this.app, text.inputEl);
-
-				// Save selected folder to settings
-				text.onChange(async (value) => {
-					this.plugin.settings.renameFolderPath = value;
-					await this.plugin.saveSettings();
-				})
-			});
-
-		new Setting(folderSelectionContainer)
-			.setName('Renaming: Include Subfolders')
-			.setDesc('Process notes in subfolders as well')
-			.addToggle(toggle => {
-				toggle
-					.setValue(this.plugin.settings.renameIncludeSubfolders)
-					.onChange(async value => {
-						this.plugin.settings.renameIncludeSubfolders = value;
-						await this.plugin.saveSettings();
-					});
-			});
 
 		// set initial state
 		const enabled = this.plugin.settings.useTemplate === true;

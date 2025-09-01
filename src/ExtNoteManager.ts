@@ -14,10 +14,6 @@ interface CreateNoteSettings {
     importTemplate: string;
     attachEmlFile: boolean;
     ignoreHiddenFiles: boolean;
-    renameFolderPath: string;
-    renameIncludeSubfolders: boolean;
-    renameMaxCount: string;
-    renameIgnoreFolderList: string[];
 }
 
 interface Frontmatter {
@@ -277,7 +273,7 @@ export class ExtNoteManager {
 
 
     //
-    // helper functions test
+    // helper functions 
     //
 
     // helper fuction to create prefix string
@@ -392,7 +388,7 @@ export class ExtNoteManager {
 
         return true;
     }
-
+/*
     private formatDateForFilename(dateStr: string): string {
 
         // Remove all whitespace
@@ -413,160 +409,5 @@ export class ExtNoteManager {
 
         return "";
     }
-
-    //
-    // -----------------------------------
-    //
-    public async renameNoteWithCreatedDate(file: TFile, silent: boolean) {
-        try {
-            // Read file content
-            const content = await this.#app.vault.read(file);
-
-            // Extract frontmatter
-            const frontmatterMatch = content.match(/^---[\s\S]*?---/);
-            if (!frontmatterMatch) {
-                if (!silent) {
-                    new Notice('No frontmatter found in the note');
-                }
-                console.log("No frontmatter found in the note " + file.name)
-                return;
-            }
-
-            const frontmatterStr = frontmatterMatch[0];
-            const frontmatter: Frontmatter = this.parseFrontmatter(frontmatterStr);
-
-            if (!frontmatter.created) {
-                if (!silent) {
-                    new Notice('No <created> date found in frontmatter');
-                }
-                console.log('No "created" date found in frontmatter' + file.name)
-                return;
-
-            }
-
-            // Get date prefix based on 'created' entry in frontmatter
-            const datePrefix = this.formatDateForFilename(frontmatter.created);
-
-            // Generate new filename
-            const currentName = file.basename;
-            const newName = `${datePrefix} ${currentName}`;
-            const pathPrefix = file.parent ? `${file.parent.path}/` : '';
-            const renamedFile = `${pathPrefix}${newName}.${file.extension}`;
-
-            // Rename the file
-            await this.#app.fileManager.renameFile(file, renamedFile);
-            await new Promise(resolve => setTimeout(resolve, 50));
-            // console.log(`From ${currentName} to ${newName}`)
-
-            if (!silent) {
-                new Notice(`Note renamed to: ${newName}`);
-            }
-
-        } catch (error) {
-            new Notice(`Error renaming note: ${error}`);
-            console.error(error);
-        }
-    }
-
-    private parseFrontmatter(frontmatterStr: string): Frontmatter {
-        const result: Frontmatter = {};
-        const lines = frontmatterStr.split('\n').slice(1, -1); // Remove --- lines
-
-        for (const line of lines) {
-            const match = line.match(/^(\w+):\s*(.*)$/);
-            if (match) {
-                const key = match[1].trim();
-                const value = match[2].trim();
-                result[key] = value;
-            }
-        }
-
-        return result;
-    }
-
-    private createFileListForRenaming(): TFile[] {
-        const listOfFiles: TFile[] = [];
-
-        // console.log("Setting 3: " + JSON.stringify(this.#settings))
-
-        // Process entire vault
-        if (this.#settings.renameFolderPath === '') {
-            listOfFiles.push(...this.#app.vault.getMarkdownFiles());
-        }
-        // Process specific folder
-        else {
-            // console.log("Folder to process: " + this.#settings.renameFolderPath);
-            const folder = this.#app.vault.getAbstractFileByPath(this.#settings.renameFolderPath);
-
-            if (!folder || !(folder instanceof TFolder)) {
-                new Notice(`Folder not found: ${this.#settings.renameFolderPath}`);
-                throw new Error(`Unable to read folder ${this.#settings.renameFolderPath}`);
-            }
-
-            // Function to collect files from a folder
-            const collectFiles = (folder: TFolder) => {
-                folder.children.forEach(child => {
-                    // Process files
-                    if (child instanceof TFile && child.extension === 'md') {
-                        listOfFiles.push(child);
-                    }
-                    // Process subfolders if requested
-                    else if (this.#settings.renameIncludeSubfolders && child instanceof TFolder) {
-                        collectFiles(child);
-                    }
-                });
-            };
-
-            collectFiles(folder);
-        }
-
-        return listOfFiles;
-    }
-
-    //
-    // --------------------------
-    //
-    public async renameAllNotes() {
-
-        const createdTag = '%created%';
-
-        // console.log("Setting 2: " + JSON.stringify(this.#settings))
-
-        // get all relevant markdown files 
-        const allFiles = this.createFileListForRenaming();
-
-        let processedCount = 0;
-        let skippedCount = 0;
-
-        // Show progress
-        const totalFiles = allFiles.length;
-        new Notice(`Processing ${totalFiles} files...`);
-
-        // Process files one by one
-        for (const file of allFiles) {
-
-            // Check if the file path contains any of the ignored folder names
-            const shouldIgnore = this.#settings.renameIgnoreFolderList.some(folderName => file.path.includes(folderName));
-            if (shouldIgnore) {
-                console.log(`Ignoring file: ${file.path}`);
-                continue;
-            }
-
-            // Skip files that already have a date prefix (YYYY-MM-DD or YYYYMMDD)
-            if (file.basename.match(/^(\d{4}-\d{2}-\d{2}|\d{8})\s/)) {
-                skippedCount++;
-                continue;
-            }
-
-            // process all selected files
-            await this.renameNoteWithCreatedDate(file, true);
-            processedCount++;
-
-            // if we have a counter which is reached, stop the loop
-            if ((Number(this.#settings.renameMaxCount) > 0) && (processedCount == Number(this.#settings.renameMaxCount))) break;
-
-        }
-
-        new Notice(`Processing of ${processedCount} files done`);
-    }
+  */ 
 }
