@@ -35515,6 +35515,19 @@ var createNotePlugin = class extends import_obsidian2.Plugin {
         console.error("Could not process file", error);
       }
     });
+    this.addCommand({
+      id: "rename-all-notes-with-date",
+      name: "Import files and create notes",
+      callback: async () => {
+        try {
+          const extNoteMgr = new ExtNoteManager(this.app, this.settings);
+          await extNoteMgr.createNotesForFiles();
+        } catch (error) {
+          new import_obsidian2.Notice("Unable to process files");
+          console.error("Could not process file", error);
+        }
+      }
+    });
     ribbonIconEl.addClass("my-plugin-ribbon-class");
     const statusBarItemEl = this.addStatusBarItem();
     statusBarItemEl.setText("Status Bar Text");

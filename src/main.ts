@@ -57,6 +57,23 @@ export default class createNotePlugin extends Plugin {
 			}
 
 		});
+
+		     // Register a command to notes
+        this.addCommand({
+            id: 'rename-all-notes-with-date',
+            name: 'Import files and create notes',
+            callback: async () => {
+                try {
+                    const extNoteMgr = new ExtNoteManager(this.app, this.settings);
+                    await extNoteMgr.createNotesForFiles();
+                }
+                catch (error) {
+                    new Notice('Unable to process files')
+                    console.error('Could not process file', error);
+                }
+            }
+        });
+
 		// Perform additional things with the ribbon
 		ribbonIconEl.addClass('my-plugin-ribbon-class');
 
