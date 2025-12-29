@@ -60,8 +60,8 @@ export default class createNotePlugin extends Plugin {
 
 		     // Register a command to notes
         this.addCommand({
-            id: 'rename-all-notes-with-date',
-            name: 'Import files and create notes',
+            id: 'create-note-from-import-file',
+            name: 'Import files and create notes for the files',
             callback: async () => {
                 try {
                     const extNoteMgr = new ExtNoteManager(this.app, this.settings);
